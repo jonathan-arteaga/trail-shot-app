@@ -22,6 +22,7 @@ copy or save instantly, and keep the full workflow local.
 - Resize handles for arrows, shapes, and redaction blocks
 - Edit placed text labels from the inspector
 - Local Vision OCR detection for likely-sensitive text
+- Optional auto-detection of sensitive text immediately after capture
 - Annotated copy/save export
 - Presentation-ready framed copy/save export
 - Drag-out PNG sharing for annotated and framed captures

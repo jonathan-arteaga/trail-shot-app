@@ -106,6 +106,12 @@ struct SettingsView: View {
             }
 
             Section("Local First") {
+                Toggle("Auto-detect sensitive text after capture", isOn: autoRedactAfterCaptureEnabled)
+                Text("When enabled, new screenshots are scanned on this Mac and matching text is covered with editable redaction blocks.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
                 Label("Screenshots stay on this Mac unless you share them.", systemImage: "internaldrive")
                 Label("Sensitive-text detection runs locally with Vision OCR.", systemImage: "text.viewfinder")
                 Label("Recordings save to Movies/TrailShot.", systemImage: "film")
@@ -119,6 +125,13 @@ struct SettingsView: View {
         Binding(
             get: { store.areGlobalShortcutsEnabled },
             set: { store.setGlobalShortcutsEnabled($0) }
+        )
+    }
+
+    private var autoRedactAfterCaptureEnabled: Binding<Bool> {
+        Binding(
+            get: { store.isAutoRedactAfterCaptureEnabled },
+            set: { store.setAutoRedactAfterCaptureEnabled($0) }
         )
     }
 }

@@ -21,6 +21,7 @@ final class CaptureStore {
     var lastRecordingURL: URL?
     var recordings: [RecordingItem]
     var areGlobalShortcutsEnabled: Bool
+    var isAutoRedactAfterCaptureEnabled: Bool
     var globalShortcuts: [GlobalShortcut]
     var globalShortcutRegistrations: [GlobalShortcutRegistration] = []
     var shortcutEditingMessage: String?
@@ -51,6 +52,7 @@ final class CaptureStore {
         captureLibraryService = CaptureLibraryService(directory: captureLibraryDirectory)
         hasScreenRecordingPermission = permissionService.hasPermission()
         areGlobalShortcutsEnabled = userDefaults.object(forKey: PreferencesKeys.globalShortcutsEnabled) as? Bool ?? true
+        isAutoRedactAfterCaptureEnabled = userDefaults.object(forKey: PreferencesKeys.autoRedactAfterCaptureEnabled) as? Bool ?? false
         globalShortcuts = Self.loadGlobalShortcuts(from: userDefaults)
         recordings = Self.loadRecordings(from: recordingsDirectory)
         lastRecordingURL = recordings.first?.url
@@ -107,6 +109,11 @@ final class CaptureStore {
         areGlobalShortcutsEnabled = enabled
         userDefaults.set(enabled, forKey: PreferencesKeys.globalShortcutsEnabled)
         configureGlobalShortcuts()
+    }
+
+    func setAutoRedactAfterCaptureEnabled(_ enabled: Bool) {
+        isAutoRedactAfterCaptureEnabled = enabled
+        userDefaults.set(enabled, forKey: PreferencesKeys.autoRedactAfterCaptureEnabled)
     }
 
     private func configureGlobalShortcuts() {
@@ -553,32 +560,47 @@ final class CaptureStore {
     }
 
     func autoRedactSensitiveText() async {
-        guard let index = selectedCaptureIndex else { return }
-        status = .working("Scanning locally")
+        guard let captureID = selectedCapture?.id else { return }
+        await autoRedactCapture(id: captureID, isAutomatic: false)
+    }
+
+    private func autoRedactCapture(id: CaptureItem.ID, isAutomatic: Bool) async {
+        guard let index = captures.firstIndex(where: { $0.id == id }) else { return }
+        status = .working(isAutomatic ? "Scanning new capture locally" : "Scanning locally")
+        let image = captures[index].image
 
         do {
-            let matches = try await sensitiveTextDetectionService.detect(in: captures[index].image)
+            let matches = try await sensitiveTextDetectionService.detect(in: image)
+            guard let resolvedIndex = captures.firstIndex(where: { $0.id == id }) else {
+                status = .ready
+                return
+            }
+
             guard !matches.isEmpty else {
-                status = .working("No sensitive text found")
-                Task { [weak self] in
-                    try? await Task.sleep(for: .seconds(1.6))
-                    self?.status = .ready
+                if isAutomatic {
+                    status = .ready
+                } else {
+                    showTransientStatus("No sensitive text found")
                 }
                 return
             }
 
             let annotations = matches.map(\.redactionAnnotation)
-            captures[index].annotations.append(contentsOf: annotations)
-            selectedAnnotationID = annotations.last?.id
-            activeTool = .move
-            persistCaptureLibrary()
-            status = .working("Added \(annotations.count) redaction\(annotations.count == 1 ? "" : "s")")
-            Task { [weak self] in
-                try? await Task.sleep(for: .seconds(1.6))
-                self?.status = .ready
+            captures[resolvedIndex].annotations.append(contentsOf: annotations)
+
+            if !isAutomatic || selectedCaptureID == id {
+                selectedAnnotationID = annotations.last?.id
+                activeTool = .move
             }
+
+            persistCaptureLibrary()
+            showTransientStatus("\(isAutomatic ? "Auto-added" : "Added") \(annotations.count) redaction\(annotations.count == 1 ? "" : "s")")
         } catch {
-            status = .failed(error.localizedDescription)
+            if !isAutomatic || selectedCaptureID == id {
+                status = .failed(error.localizedDescription)
+            } else {
+                status = .ready
+            }
         }
     }
 
@@ -758,6 +780,11 @@ final class CaptureStore {
         selectedAnnotationID = nil
         persistCaptureLibrary()
         exportService.copyToClipboard(image)
+        if isAutoRedactAfterCaptureEnabled {
+            Task { [weak self] in
+                await self?.autoRedactCapture(id: item.id, isAutomatic: true)
+            }
+        }
         quickAccessService.show(
             captureName: item.name,
             copy: { [weak self] in self?.copySelectedCapture() },
@@ -785,6 +812,14 @@ final class CaptureStore {
             try captureLibraryService.saveCaptures(captures)
         } catch {
             status = .failed("Could not save capture history.")
+        }
+    }
+
+    private func showTransientStatus(_ message: String) {
+        status = .working(message)
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(1.6))
+            self?.status = .ready
         }
     }
 
@@ -862,6 +897,7 @@ private let screenRecordingPermissionMessage = "Screen Recording permission requ
 
 private enum PreferencesKeys {
     static let globalShortcutsEnabled = "globalShortcutsEnabled"
+    static let autoRedactAfterCaptureEnabled = "autoRedactAfterCaptureEnabled"
     static let globalShortcuts = "globalShortcuts"
 }
 
