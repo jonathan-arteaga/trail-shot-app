@@ -1,0 +1,107 @@
+import AppKit
+import SwiftUI
+
+@MainActor
+final class QuickAccessService {
+    private var panel: NSPanel?
+
+    func show(
+        captureName: String,
+        copy: @escaping () -> Void,
+        save: @escaping () -> Void,
+        pin: @escaping () -> Void,
+        annotate: @escaping () -> Void
+    ) {
+        panel?.close()
+
+        let screenFrame = NSScreen.main?.visibleFrame ?? .zero
+        let size = CGSize(width: 330, height: 76)
+        let origin = CGPoint(
+            x: screenFrame.maxX - size.width - 24,
+            y: screenFrame.maxY - size.height - 24
+        )
+
+        let panel = NSPanel(
+            contentRect: CGRect(origin: origin, size: size),
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        panel.level = .floating
+        panel.backgroundColor = .clear
+        panel.isOpaque = false
+        panel.hasShadow = true
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        panel.contentView = NSHostingView(
+            rootView: QuickAccessBubbleView(
+                captureName: captureName,
+                copy: { copy() },
+                save: { save() },
+                pin: { pin() },
+                annotate: { annotate() }
+            )
+        )
+
+        self.panel = panel
+        panel.orderFrontRegardless()
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 7) { [weak self, weak panel] in
+            guard self?.panel === panel else { return }
+            panel?.close()
+            self?.panel = nil
+        }
+    }
+}
+
+private struct QuickAccessBubbleView: View {
+    let captureName: String
+    let copy: () -> Void
+    let save: () -> Void
+    let pin: () -> Void
+    let annotate: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            TrailShotLogo(size: 32)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(captureName)
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+                Text("Copied")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Button(action: copy) {
+                Image(systemName: "doc.on.doc")
+            }
+            .help("Copy")
+
+            Button(action: save) {
+                Image(systemName: "square.and.arrow.down")
+            }
+            .help("Save")
+
+            Button(action: pin) {
+                Image(systemName: "pin")
+            }
+            .help("Pin")
+
+            Button(action: annotate) {
+                Image(systemName: "pencil")
+            }
+            .buttonStyle(.borderedProminent)
+            .help("Annotate")
+        }
+        .padding(14)
+        .frame(width: 330, height: 76)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(.separator, lineWidth: 0.5)
+        }
+    }
+}

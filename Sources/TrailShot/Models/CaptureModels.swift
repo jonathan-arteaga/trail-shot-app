@@ -1,0 +1,126 @@
+import AppKit
+import CoreGraphics
+import Foundation
+
+enum CaptureKind: String, CaseIterable, Identifiable {
+    case area = "Area"
+    case fullScreen = "Full Screen"
+    case window = "Window"
+    case scrolling = "Scrolling"
+    case recording = "Recording"
+    case ocr = "OCR"
+
+    var id: String { rawValue }
+}
+
+struct CaptureItem: Identifiable, Hashable {
+    let id = UUID()
+    let kind: CaptureKind
+    let createdAt: Date
+    let image: NSImage
+    let pixelSize: CGSize
+    var name: String
+    var annotations: [CaptureAnnotation] = []
+
+    static func == (lhs: CaptureItem, rhs: CaptureItem) -> Bool {
+        lhs.id == rhs.id
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+}
+
+struct PinnedCapture: Identifiable {
+    let id = UUID()
+    let captureID: CaptureItem.ID?
+    let title: String
+    let createdAt: Date
+    let pixelSize: CGSize
+}
+
+enum CaptureStatus: Equatable {
+    case ready
+    case selectingArea
+    case working(String)
+    case failed(String)
+}
+
+struct CaptureWindowCandidate: Identifiable, Hashable {
+    let id: CGWindowID
+    let title: String
+    let appName: String
+    let frame: CGRect
+
+    var displayTitle: String {
+        title.isEmpty ? appName : title
+    }
+
+    var subtitle: String {
+        "\(appName) - \(Int(frame.width)) x \(Int(frame.height))"
+    }
+}
+
+enum AnnotationTool: String, CaseIterable, Identifiable {
+    case move = "Move"
+    case arrow = "Arrow"
+    case rectangle = "Shape"
+    case text = "Text"
+    case redact = "Blur"
+    case step = "Step"
+
+    var id: String { rawValue }
+
+    var symbolName: String {
+        switch self {
+        case .move:
+            "cursorarrow.motionlines"
+        case .arrow:
+            "arrow.up.right"
+        case .rectangle:
+            "rectangle"
+        case .text:
+            "textformat"
+        case .redact:
+            "eye.slash"
+        case .step:
+            "1.circle"
+        }
+    }
+}
+
+struct CaptureAnnotation: Identifiable, Hashable {
+    let id = UUID()
+    var tool: AnnotationTool
+    var start: CGPoint
+    var end: CGPoint
+    var text: String = ""
+    var stepNumber: Int = 0
+}
+
+enum AnnotationResizeHandle {
+    case start
+    case end
+    case topLeft
+    case topRight
+    case bottomLeft
+    case bottomRight
+}
+
+struct ToolDescriptor: Identifiable {
+    let id: String
+    let title: String
+    let symbolName: String
+    let description: String
+}
+
+extension ToolDescriptor {
+    static let plannedTools: [ToolDescriptor] = [
+        ToolDescriptor(id: "arrow", title: "Arrow", symbolName: "arrow.up.right", description: "Call out a precise point"),
+        ToolDescriptor(id: "rectangle", title: "Shape", symbolName: "rectangle", description: "Frame important regions"),
+        ToolDescriptor(id: "text", title: "Text", symbolName: "textformat", description: "Add short context"),
+        ToolDescriptor(id: "redact", title: "Blur", symbolName: "eye.slash", description: "Redact sensitive data"),
+        ToolDescriptor(id: "step", title: "Step", symbolName: "1.circle", description: "Mark ordered instructions"),
+        ToolDescriptor(id: "beautify", title: "Frame", symbolName: "sparkles", description: "Create a polished share image")
+    ]
+}

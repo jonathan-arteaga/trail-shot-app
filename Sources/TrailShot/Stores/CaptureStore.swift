@@ -1,0 +1,674 @@
+import AppKit
+import Observation
+
+@MainActor
+@Observable
+final class CaptureStore {
+    var captures: [CaptureItem] = []
+    var selectedCaptureID: CaptureItem.ID?
+    var status: CaptureStatus = .ready
+    var activeTool: AnnotationTool = .arrow
+    var activeText = "Note"
+    var selectedAnnotationID: CaptureAnnotation.ID?
+    var pinnedCaptures: [PinnedCapture] = []
+    var isShowingWindowPicker = false
+    var windowCandidates: [CaptureWindowCandidate] = []
+    var windowThumbnails: [CGWindowID: NSImage] = [:]
+    var windowPickerMessage: String?
+    var hasScreenRecordingPermission: Bool
+    var isRecording = false
+    var recordingStartedAt: Date?
+    var lastRecordingURL: URL?
+    var areGlobalShortcutsEnabled: Bool
+    var globalShortcutRegistrations: [GlobalShortcutRegistration] = []
+
+    private let captureService = ScreenCaptureService()
+    private let recordingService = ScreenRecordingService()
+    private let selectionService = AreaSelectionService()
+    private let hoverWindowSelectionService = HoverWindowSelectionService()
+    private let exportService = ImageExportService()
+    private let quickAccessService = QuickAccessService()
+    private let pinWindowService = PinWindowService()
+    private let sensitiveTextDetectionService = SensitiveTextDetectionService()
+    private let permissionService = ScreenRecordingPermissionService()
+    private let globalHotKeyService = GlobalHotKeyService()
+    private let userDefaults: UserDefaults
+
+    init(userDefaults: UserDefaults = .standard) {
+        self.userDefaults = userDefaults
+        hasScreenRecordingPermission = permissionService.hasPermission()
+        areGlobalShortcutsEnabled = userDefaults.object(forKey: PreferencesKeys.globalShortcutsEnabled) as? Bool ?? true
+    }
+
+    var selectedCapture: CaptureItem? {
+        guard let selectedCaptureID else { return captures.first }
+        return captures.first { $0.id == selectedCaptureID }
+    }
+
+    var selectedAnnotation: CaptureAnnotation? {
+        guard
+            let selectedCapture,
+            let selectedAnnotationID
+        else {
+            return nil
+        }
+
+        return selectedCapture.annotations.first { $0.id == selectedAnnotationID }
+    }
+
+    var defaultGlobalShortcuts: [GlobalShortcut] {
+        GlobalShortcutAction.allCases.map(\.defaultShortcut)
+    }
+
+    var globalShortcutSummary: String {
+        guard areGlobalShortcutsEnabled else {
+            return "Global shortcuts are off"
+        }
+
+        guard !globalShortcutRegistrations.isEmpty else {
+            return "Global shortcuts are starting"
+        }
+
+        let failedCount = globalShortcutRegistrations.filter { !$0.isRegistered }.count
+        if failedCount == 0 {
+            return "Global shortcuts are ready"
+        }
+
+        return "\(failedCount) shortcut\(failedCount == 1 ? "" : "s") unavailable"
+    }
+
+    func startGlobalShortcuts() {
+        configureGlobalShortcuts()
+    }
+
+    func setGlobalShortcutsEnabled(_ enabled: Bool) {
+        areGlobalShortcutsEnabled = enabled
+        userDefaults.set(enabled, forKey: PreferencesKeys.globalShortcutsEnabled)
+        configureGlobalShortcuts()
+    }
+
+    private func configureGlobalShortcuts() {
+        guard areGlobalShortcutsEnabled else {
+            globalHotKeyService.unregisterAll()
+            globalShortcutRegistrations = []
+            return
+        }
+
+        globalShortcutRegistrations = globalHotKeyService.register(shortcuts: defaultGlobalShortcuts) { [weak self] action in
+            Task { @MainActor in
+                await self?.performGlobalShortcut(action)
+            }
+        }
+    }
+
+    private func performGlobalShortcut(_ action: GlobalShortcutAction) async {
+        switch action {
+        case .captureArea:
+            await captureArea()
+        case .captureFullScreen:
+            await captureFullScreen()
+        case .captureWindow:
+            await captureTargetedWindow()
+        case .toggleRecording:
+            await toggleRecording()
+        case .recordArea:
+            await startAreaRecording()
+        }
+    }
+
+    func captureArea() async {
+        guard ensureScreenRecordingPermission() else { return }
+        status = .selectingArea
+
+        do {
+            guard let rect = await selectionService.selectArea() else {
+                status = .ready
+                return
+            }
+
+            status = .working("Capturing selection")
+            let image = try await captureService.captureMainDisplay(rect: rect)
+            insertCapture(image: image, kind: .area)
+            status = .ready
+        } catch {
+            status = .failed(error.localizedDescription)
+        }
+    }
+
+    func captureFullScreen() async {
+        guard ensureScreenRecordingPermission() else { return }
+        status = .working("Capturing full screen")
+
+        do {
+            let image = try await captureService.captureMainDisplay()
+            insertCapture(image: image, kind: .fullScreen)
+            status = .ready
+        } catch {
+            status = .failed(error.localizedDescription)
+        }
+    }
+
+    func captureFrontmostWindow() async {
+        guard ensureScreenRecordingPermission() else { return }
+        status = .working("Capturing window")
+
+        do {
+            let image = try await captureService.captureFrontmostWindow()
+            insertCapture(image: image, kind: .window)
+            status = .ready
+        } catch {
+            status = .failed(error.localizedDescription)
+        }
+    }
+
+    func captureTargetedWindow() async {
+        guard ensureScreenRecordingPermission() else { return }
+        status = .working("Choose a window")
+
+        do {
+            let candidates = try await captureService.availableWindows()
+            guard !candidates.isEmpty else {
+                status = .failed("No capturable windows found.")
+                return
+            }
+
+            guard let candidate = await hoverWindowSelectionService.selectWindow(from: candidates) else {
+                status = .ready
+                return
+            }
+
+            status = .working("Capturing \(candidate.appName)")
+            let image = try await captureService.captureWindow(id: candidate.id)
+            insertCapture(image: image, kind: .window)
+            status = .ready
+        } catch {
+            status = .failed(error.localizedDescription)
+        }
+    }
+
+    func showWindowPicker() async {
+        guard ensureScreenRecordingPermission() else { return }
+        status = .working("Finding windows")
+
+        do {
+            windowCandidates = try await captureService.availableWindows()
+            windowThumbnails = [:]
+            windowPickerMessage = windowCandidates.isEmpty ? "No capturable windows found." : nil
+            isShowingWindowPicker = true
+            status = .ready
+            await loadWindowThumbnails(for: Array(windowCandidates.prefix(14)))
+        } catch {
+            windowCandidates = []
+            windowThumbnails = [:]
+            windowPickerMessage = error.localizedDescription
+            isShowingWindowPicker = true
+            status = .failed(error.localizedDescription)
+        }
+    }
+
+    func captureWindow(_ candidate: CaptureWindowCandidate) async {
+        guard ensureScreenRecordingPermission() else { return }
+        isShowingWindowPicker = false
+        status = .working("Capturing \(candidate.appName)")
+
+        do {
+            let image = try await captureService.captureWindow(id: candidate.id)
+            insertCapture(image: image, kind: .window)
+            status = .ready
+        } catch {
+            status = .failed(error.localizedDescription)
+        }
+    }
+
+    func startRecording() async {
+        guard ensureScreenRecordingPermission(), !isRecording else { return }
+        status = .working("Starting recording")
+
+        do {
+            lastRecordingURL = try await recordingService.startMainDisplayRecording()
+            recordingStartedAt = Date()
+            isRecording = true
+            status = .working("Recording screen")
+        } catch {
+            isRecording = false
+            recordingStartedAt = nil
+            status = .failed(error.localizedDescription)
+        }
+    }
+
+    func startAreaRecording() async {
+        guard ensureScreenRecordingPermission(), !isRecording else { return }
+        status = .selectingArea
+
+        guard let rect = await selectionService.selectArea() else {
+            status = .ready
+            return
+        }
+
+        status = .working("Starting area recording")
+
+        do {
+            lastRecordingURL = try await recordingService.startAreaRecording(rect: rect)
+            recordingStartedAt = Date()
+            isRecording = true
+            status = .working("Recording area")
+        } catch {
+            isRecording = false
+            recordingStartedAt = nil
+            status = .failed(error.localizedDescription)
+        }
+    }
+
+    func stopRecording() async {
+        guard isRecording else { return }
+        status = .working("Finishing recording")
+
+        do {
+            let url = try await recordingService.stopRecording()
+            lastRecordingURL = url
+            isRecording = false
+            recordingStartedAt = nil
+            status = .working("Recording saved")
+            Task { [weak self] in
+                try? await Task.sleep(for: .seconds(1.8))
+                self?.status = .ready
+            }
+        } catch {
+            isRecording = false
+            recordingStartedAt = nil
+            status = .failed(error.localizedDescription)
+        }
+    }
+
+    func toggleRecording() async {
+        if isRecording {
+            await stopRecording()
+        } else {
+            await startRecording()
+        }
+    }
+
+    func revealLastRecording() {
+        guard let lastRecordingURL else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([lastRecordingURL])
+    }
+
+    func openLastRecording() {
+        guard let lastRecordingURL else { return }
+        NSWorkspace.shared.open(lastRecordingURL)
+    }
+
+    private func loadWindowThumbnails(for candidates: [CaptureWindowCandidate]) async {
+        for candidate in candidates {
+            guard windowCandidates.contains(where: { $0.id == candidate.id }) else { continue }
+
+            if let thumbnail = try? await captureService.captureWindowThumbnail(id: candidate.id) {
+                windowThumbnails[candidate.id] = thumbnail
+            }
+        }
+    }
+
+    func copySelectedCapture() {
+        guard let capture = selectedCapture else { return }
+        exportService.copyToClipboard(exportService.renderedImage(for: capture))
+    }
+
+    func refreshScreenRecordingPermission() {
+        hasScreenRecordingPermission = permissionService.hasPermission()
+        if hasScreenRecordingPermission, case .failed(let message) = status, message == screenRecordingPermissionMessage {
+            status = .ready
+        }
+    }
+
+    func requestScreenRecordingPermission() {
+        hasScreenRecordingPermission = permissionService.requestPermission()
+        if hasScreenRecordingPermission {
+            status = .ready
+        } else {
+            status = .failed(screenRecordingPermissionMessage)
+        }
+    }
+
+    func openScreenRecordingSettings() {
+        permissionService.openSystemSettings()
+        status = .failed(screenRecordingPermissionMessage)
+    }
+
+    func copySelectedCaptureFramed() {
+        guard let capture = selectedCapture else { return }
+        exportService.copyToClipboard(exportService.framedImage(for: capture))
+    }
+
+    func saveSelectedCapture() async {
+        guard let capture = selectedCapture else { return }
+        await exportService.saveWithPanel(capture)
+    }
+
+    func saveSelectedCaptureFramed() async {
+        guard let capture = selectedCapture else { return }
+        await exportService.saveFramedWithPanel(capture)
+    }
+
+    func dragItemProvider(framed: Bool) -> NSItemProvider {
+        guard let capture = selectedCapture else {
+            return NSItemProvider()
+        }
+
+        do {
+            let variant: ImageExportService.ExportVariant = framed ? .framed : .annotated
+            let url = try exportService.temporaryPNGURL(for: capture, variant: variant)
+            return NSItemProvider(contentsOf: url) ?? NSItemProvider(object: url as NSURL)
+        } catch {
+            NSSound.beep()
+            return NSItemProvider()
+        }
+    }
+
+    func renameSelectedCapture(_ name: String) {
+        guard let selectedCaptureID else { return }
+        renameCapture(id: selectedCaptureID, name: name)
+    }
+
+    func renameCapture(id: CaptureItem.ID, name: String) {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty, let index = captures.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+
+        captures[index].name = trimmedName
+    }
+
+    func deleteSelectedCapture() {
+        guard let capture = selectedCapture else { return }
+        deleteCapture(id: capture.id)
+    }
+
+    func deleteCapture(id: CaptureItem.ID) {
+        guard let index = captures.firstIndex(where: { $0.id == id }) else { return }
+        closePinnedCaptures(for: id)
+        captures.remove(at: index)
+        selectedAnnotationID = nil
+
+        if selectedCaptureID == id || selectedCaptureID == nil {
+            selectedCaptureID = captures.indices.contains(index) ? captures[index].id : captures.first?.id
+        }
+    }
+
+    func clearCaptureHistory() {
+        captures.removeAll()
+        selectedCaptureID = nil
+        selectedAnnotationID = nil
+        closeAllPinnedCaptures()
+        status = .ready
+    }
+
+    func clearAnnotations() {
+        guard let index = selectedCaptureIndex else { return }
+        captures[index].annotations.removeAll()
+        selectedAnnotationID = nil
+    }
+
+    func autoRedactSensitiveText() async {
+        guard let index = selectedCaptureIndex else { return }
+        status = .working("Scanning locally")
+
+        do {
+            let matches = try await sensitiveTextDetectionService.detect(in: captures[index].image)
+            guard !matches.isEmpty else {
+                status = .working("No sensitive text found")
+                Task { [weak self] in
+                    try? await Task.sleep(for: .seconds(1.6))
+                    self?.status = .ready
+                }
+                return
+            }
+
+            let annotations = matches.map(\.redactionAnnotation)
+            captures[index].annotations.append(contentsOf: annotations)
+            selectedAnnotationID = annotations.last?.id
+            activeTool = .move
+            status = .working("Added \(annotations.count) redaction\(annotations.count == 1 ? "" : "s")")
+            Task { [weak self] in
+                try? await Task.sleep(for: .seconds(1.6))
+                self?.status = .ready
+            }
+        } catch {
+            status = .failed(error.localizedDescription)
+        }
+    }
+
+    func deleteSelectedAnnotation() {
+        guard
+            let index = selectedCaptureIndex,
+            let selectedAnnotationID,
+            let annotationIndex = captures[index].annotations.firstIndex(where: { $0.id == selectedAnnotationID })
+        else {
+            return
+        }
+
+        captures[index].annotations.remove(at: annotationIndex)
+        self.selectedAnnotationID = nil
+    }
+
+    func undoLastAnnotation() {
+        guard let index = selectedCaptureIndex, !captures[index].annotations.isEmpty else { return }
+        let removed = captures[index].annotations.removeLast()
+        if selectedAnnotationID == removed.id {
+            selectedAnnotationID = nil
+        }
+    }
+
+    func pinSelectedCapture() {
+        guard let capture = selectedCapture else { return }
+        let renderedImage = exportService.renderedImage(for: capture)
+        let pinnedCapture = PinnedCapture(
+            captureID: capture.id,
+            title: capture.name,
+            createdAt: Date(),
+            pixelSize: renderedImage.pixelSize
+        )
+
+        pinnedCaptures.insert(pinnedCapture, at: 0)
+        pinWindowService.pin(id: pinnedCapture.id, image: renderedImage, title: pinnedCapture.title) { [weak self] id in
+            Task { @MainActor in
+                self?.forgetPinnedCapture(id: id)
+            }
+        }
+    }
+
+    func focusPinnedCapture(_ pinnedCapture: PinnedCapture) {
+        if let captureID = pinnedCapture.captureID {
+            selectedCaptureID = captureID
+        }
+        pinWindowService.focus(id: pinnedCapture.id)
+    }
+
+    func unpinCapture(id: PinnedCapture.ID) {
+        forgetPinnedCapture(id: id)
+        pinWindowService.close(id: id)
+    }
+
+    func closeAllPinnedCaptures() {
+        pinnedCaptures.removeAll()
+        pinWindowService.closeAll()
+    }
+
+    func addAnnotation(tool: AnnotationTool, start: CGPoint, end: CGPoint) {
+        guard let index = selectedCaptureIndex, tool != .move else { return }
+
+        let normalizedStart = start.clampedToUnitSquare
+        let normalizedEnd = end.clampedToUnitSquare
+        let stepNumber = nextStepNumber(for: captures[index])
+        let annotation = CaptureAnnotation(
+            tool: tool,
+            start: normalizedStart,
+            end: normalizedEnd,
+            text: activeText.isEmpty ? "Note" : activeText,
+            stepNumber: stepNumber
+        )
+        captures[index].annotations.append(annotation)
+        selectedAnnotationID = annotation.id
+    }
+
+    func selectAnnotation(id: CaptureAnnotation.ID?) {
+        selectedAnnotationID = id
+        if id != nil {
+            activeTool = .move
+        }
+    }
+
+    func moveAnnotation(id: CaptureAnnotation.ID, by delta: CGPoint) {
+        guard
+            let captureIndex = selectedCaptureIndex,
+            let annotationIndex = captures[captureIndex].annotations.firstIndex(where: { $0.id == id })
+        else {
+            return
+        }
+
+        var annotation = captures[captureIndex].annotations[annotationIndex]
+        annotation.start = annotation.start.offsetBy(delta).clampedToUnitSquare
+        annotation.end = annotation.end.offsetBy(delta).clampedToUnitSquare
+        captures[captureIndex].annotations[annotationIndex] = annotation
+    }
+
+    func resizeAnnotation(id: CaptureAnnotation.ID, handle: AnnotationResizeHandle, to point: CGPoint) {
+        guard
+            let captureIndex = selectedCaptureIndex,
+            let annotationIndex = captures[captureIndex].annotations.firstIndex(where: { $0.id == id })
+        else {
+            return
+        }
+
+        var annotation = captures[captureIndex].annotations[annotationIndex]
+        let point = point.clampedToUnitSquare
+
+        switch annotation.tool {
+        case .arrow:
+            if handle == .start {
+                annotation.start = point
+            } else {
+                annotation.end = point
+            }
+        case .rectangle, .redact:
+            let minX = min(annotation.start.x, annotation.end.x)
+            let maxX = max(annotation.start.x, annotation.end.x)
+            let minY = min(annotation.start.y, annotation.end.y)
+            let maxY = max(annotation.start.y, annotation.end.y)
+
+            switch handle {
+            case .topLeft:
+                annotation.start = CGPoint(x: min(point.x, maxX - 0.01), y: min(point.y, maxY - 0.01))
+                annotation.end = CGPoint(x: maxX, y: maxY)
+            case .topRight:
+                annotation.start = CGPoint(x: minX, y: min(point.y, maxY - 0.01))
+                annotation.end = CGPoint(x: max(point.x, minX + 0.01), y: maxY)
+            case .bottomLeft:
+                annotation.start = CGPoint(x: min(point.x, maxX - 0.01), y: minY)
+                annotation.end = CGPoint(x: maxX, y: max(point.y, minY + 0.01))
+            case .bottomRight, .end:
+                annotation.start = CGPoint(x: minX, y: minY)
+                annotation.end = CGPoint(x: max(point.x, minX + 0.01), y: max(point.y, minY + 0.01))
+            case .start:
+                annotation.start = point
+            }
+        case .text, .step, .move:
+            annotation.start = point
+            annotation.end = point
+        }
+
+        captures[captureIndex].annotations[annotationIndex] = annotation
+    }
+
+    func updateSelectedAnnotationText(_ text: String) {
+        guard
+            let captureIndex = selectedCaptureIndex,
+            let selectedAnnotationID,
+            let annotationIndex = captures[captureIndex].annotations.firstIndex(where: { $0.id == selectedAnnotationID }),
+            captures[captureIndex].annotations[annotationIndex].tool == .text
+        else {
+            return
+        }
+
+        captures[captureIndex].annotations[annotationIndex].text = text
+    }
+
+    private func insertCapture(image: NSImage, kind: CaptureKind) {
+        let createdAt = Date()
+        let item = CaptureItem(
+            kind: kind,
+            createdAt: createdAt,
+            image: image,
+            pixelSize: image.pixelSize,
+            name: "\(kind.rawValue) \(createdAt.formatted(date: .omitted, time: .shortened))"
+        )
+
+        captures.insert(item, at: 0)
+        selectedCaptureID = item.id
+        selectedAnnotationID = nil
+        exportService.copyToClipboard(image)
+        quickAccessService.show(
+            captureName: item.name,
+            copy: { [weak self] in self?.copySelectedCapture() },
+            save: { [weak self] in Task { await self?.saveSelectedCapture() } },
+            pin: { [weak self] in self?.pinSelectedCapture() },
+            annotate: {
+                NSApp.activate(ignoringOtherApps: true)
+            }
+        )
+    }
+
+    private var selectedCaptureIndex: Int? {
+        guard let selectedCaptureID else {
+            return captures.isEmpty ? nil : 0
+        }
+        return captures.firstIndex { $0.id == selectedCaptureID }
+    }
+
+    private func nextStepNumber(for capture: CaptureItem) -> Int {
+        let maxStep = capture.annotations
+            .filter { $0.tool == .step }
+            .map(\.stepNumber)
+            .max() ?? 0
+        return maxStep + 1
+    }
+
+    private func ensureScreenRecordingPermission() -> Bool {
+        hasScreenRecordingPermission = permissionService.hasPermission()
+        guard hasScreenRecordingPermission else {
+            status = .failed(screenRecordingPermissionMessage)
+            return false
+        }
+        return true
+    }
+
+    private func forgetPinnedCapture(id: PinnedCapture.ID) {
+        pinnedCaptures.removeAll { $0.id == id }
+    }
+
+    private func closePinnedCaptures(for captureID: CaptureItem.ID) {
+        let pinnedIDs = pinnedCaptures
+            .filter { $0.captureID == captureID }
+            .map(\.id)
+
+        pinnedIDs.forEach { id in
+            forgetPinnedCapture(id: id)
+            pinWindowService.close(id: id)
+        }
+    }
+}
+
+private let screenRecordingPermissionMessage = "Screen Recording permission required."
+
+private enum PreferencesKeys {
+    static let globalShortcutsEnabled = "globalShortcutsEnabled"
+}
+
+private extension CGPoint {
+    var clampedToUnitSquare: CGPoint {
+        CGPoint(x: min(max(x, 0), 1), y: min(max(y, 0), 1))
+    }
+
+    func offsetBy(_ delta: CGPoint) -> CGPoint {
+        CGPoint(x: x + delta.x, y: y + delta.y)
+    }
+}
