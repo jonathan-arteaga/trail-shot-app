@@ -25,22 +25,41 @@ struct SettingsView: View {
                 Text(store.globalShortcutSummary)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if let message = store.shortcutEditingMessage {
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
-            Section("Defaults") {
-                ForEach(store.defaultGlobalShortcuts) { shortcut in
+            Section("Shortcuts") {
+                ForEach(GlobalShortcutAction.allCases) { action in
+                    let shortcut = store.shortcut(for: action)
                     HStack(spacing: 12) {
-                        Image(systemName: shortcut.action.systemImage)
+                        Image(systemName: action.systemImage)
                             .foregroundStyle(.secondary)
                             .frame(width: 20)
-                        Text(shortcut.action.title)
+                        Text(action.title)
                         Spacer()
-                        Text(shortcut.displayValue)
-                            .font(.system(.body, design: .monospaced).weight(.semibold))
-                            .padding(.horizontal, 8)
-                            .frame(height: 24)
-                            .background(.quaternary, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        ShortcutRecorderView(shortcut: shortcut) { newShortcut in
+                            store.updateGlobalShortcut(newShortcut)
+                        }
+                        .frame(width: 82, height: 26)
+
+                        Button {
+                            store.resetGlobalShortcut(action: action)
+                        } label: {
+                            Image(systemName: "arrow.counterclockwise")
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Reset \(action.title)")
                     }
+                }
+
+                Button {
+                    store.resetAllGlobalShortcuts()
+                } label: {
+                    Label("Reset All", systemImage: "arrow.counterclockwise.circle")
                 }
             }
 

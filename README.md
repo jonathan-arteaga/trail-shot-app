@@ -8,7 +8,7 @@ copy or save instantly, and keep the full workflow local.
 
 - Native Swift/SwiftUI macOS app shell
 - Menu bar capture actions
-- Conflict-safe global shortcuts with a native Settings toggle
+- Editable conflict-safe global shortcuts with native Settings controls
 - First-run Screen Recording permission guidance
 - Full-screen capture through ScreenCaptureKit
 - Multi-display area selection with ScreenCaptureKit region capture on modern macOS
@@ -44,7 +44,8 @@ capture. The app surfaces the current access state and can open the correct
 System Settings pane.
 
 Default global shortcuts use Control-Option-Shift so TrailShot works without
-disabling Apple's built-in screenshot keys:
+disabling Apple's built-in screenshot keys. They can be changed from TrailShot
+Settings.
 
 - Capture area: `⌃⌥⇧4`
 - Capture full screen: `⌃⌥⇧3`
@@ -101,6 +102,5 @@ of gravity is a single clean workflow:
 
 - Cross-display selection polish and validation
 - Window targeting polish on multi-display setups
-- Editable global shortcut recorder
 - Recording trim
 - Developer ID signing, hardened runtime, notarization, and stapled DMG release

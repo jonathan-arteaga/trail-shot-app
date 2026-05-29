@@ -20,7 +20,9 @@ final class CaptureStore {
     var recordingStartedAt: Date?
     var lastRecordingURL: URL?
     var areGlobalShortcutsEnabled: Bool
+    var globalShortcuts: [GlobalShortcut]
     var globalShortcutRegistrations: [GlobalShortcutRegistration] = []
+    var shortcutEditingMessage: String?
 
     private let captureService = ScreenCaptureService()
     private let recordingService = ScreenRecordingService()
@@ -38,6 +40,7 @@ final class CaptureStore {
         self.userDefaults = userDefaults
         hasScreenRecordingPermission = permissionService.hasPermission()
         areGlobalShortcutsEnabled = userDefaults.object(forKey: PreferencesKeys.globalShortcutsEnabled) as? Bool ?? true
+        globalShortcuts = Self.loadGlobalShortcuts(from: userDefaults)
     }
 
     var selectedCapture: CaptureItem? {
@@ -58,6 +61,10 @@ final class CaptureStore {
 
     var defaultGlobalShortcuts: [GlobalShortcut] {
         GlobalShortcutAction.allCases.map(\.defaultShortcut)
+    }
+
+    func shortcut(for action: GlobalShortcutAction) -> GlobalShortcut {
+        globalShortcuts.first { $0.action == action } ?? action.defaultShortcut
     }
 
     var globalShortcutSummary: String {
@@ -94,10 +101,75 @@ final class CaptureStore {
             return
         }
 
-        globalShortcutRegistrations = globalHotKeyService.register(shortcuts: defaultGlobalShortcuts) { [weak self] action in
+        globalShortcutRegistrations = globalHotKeyService.register(shortcuts: globalShortcuts) { [weak self] action in
             Task { @MainActor in
                 await self?.performGlobalShortcut(action)
             }
+        }
+    }
+
+    func updateGlobalShortcut(_ shortcut: GlobalShortcut) {
+        guard shortcut.isUsableGlobalShortcut else {
+            shortcutEditingMessage = "Use Command, Control, or Option with a key."
+            return
+        }
+
+        guard !hasShortcutConflict(shortcut) else {
+            shortcutEditingMessage = "\(shortcut.displayValue) is already assigned."
+            return
+        }
+
+        replaceGlobalShortcut(shortcut)
+        shortcutEditingMessage = "\(shortcut.action.title) set to \(shortcut.displayValue)."
+    }
+
+    func resetGlobalShortcut(action: GlobalShortcutAction) {
+        replaceGlobalShortcut(action.defaultShortcut)
+        shortcutEditingMessage = "\(action.title) reset."
+    }
+
+    func resetAllGlobalShortcuts() {
+        globalShortcuts = defaultGlobalShortcuts
+        persistGlobalShortcuts()
+        configureGlobalShortcuts()
+        shortcutEditingMessage = "Shortcuts reset to defaults."
+    }
+
+    private func replaceGlobalShortcut(_ shortcut: GlobalShortcut) {
+        if let index = globalShortcuts.firstIndex(where: { $0.action == shortcut.action }) {
+            globalShortcuts[index] = shortcut
+        } else {
+            globalShortcuts.append(shortcut)
+            globalShortcuts.sort { $0.action.rawValue < $1.action.rawValue }
+        }
+
+        persistGlobalShortcuts()
+        configureGlobalShortcuts()
+    }
+
+    private func hasShortcutConflict(_ shortcut: GlobalShortcut) -> Bool {
+        globalShortcuts.contains {
+            $0.action != shortcut.action &&
+                $0.keyCode == shortcut.keyCode &&
+                $0.modifiers == shortcut.modifiers
+        }
+    }
+
+    private func persistGlobalShortcuts() {
+        guard let data = try? JSONEncoder().encode(globalShortcuts) else { return }
+        userDefaults.set(data, forKey: PreferencesKeys.globalShortcuts)
+    }
+
+    private static func loadGlobalShortcuts(from userDefaults: UserDefaults) -> [GlobalShortcut] {
+        guard
+            let data = userDefaults.data(forKey: PreferencesKeys.globalShortcuts),
+            let decoded = try? JSONDecoder().decode([GlobalShortcut].self, from: data)
+        else {
+            return GlobalShortcutAction.allCases.map(\.defaultShortcut)
+        }
+
+        return GlobalShortcutAction.allCases.map { action in
+            decoded.first { $0.action == action && $0.isUsableGlobalShortcut } ?? action.defaultShortcut
         }
     }
 
@@ -661,6 +733,7 @@ private let screenRecordingPermissionMessage = "Screen Recording permission requ
 
 private enum PreferencesKeys {
     static let globalShortcutsEnabled = "globalShortcutsEnabled"
+    static let globalShortcuts = "globalShortcuts"
 }
 
 private extension CGPoint {
