@@ -59,6 +59,23 @@ struct CaptureWindowCandidate: Identifiable, Hashable {
     var subtitle: String {
         "\(appName) - \(Int(frame.width)) x \(Int(frame.height))"
     }
+
+    static func == (lhs: CaptureWindowCandidate, rhs: CaptureWindowCandidate) -> Bool {
+        lhs.id == rhs.id &&
+            lhs.title == rhs.title &&
+            lhs.appName == rhs.appName &&
+            lhs.frame.equalTo(rhs.frame)
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(title)
+        hasher.combine(appName)
+        hasher.combine(frame.minX)
+        hasher.combine(frame.minY)
+        hasher.combine(frame.width)
+        hasher.combine(frame.height)
+    }
 }
 
 enum AnnotationTool: String, CaseIterable, Identifiable {
@@ -96,6 +113,26 @@ struct CaptureAnnotation: Identifiable, Hashable {
     var end: CGPoint
     var text: String = ""
     var stepNumber: Int = 0
+
+    static func == (lhs: CaptureAnnotation, rhs: CaptureAnnotation) -> Bool {
+        lhs.id == rhs.id &&
+            lhs.tool == rhs.tool &&
+            lhs.start.equalTo(rhs.start) &&
+            lhs.end.equalTo(rhs.end) &&
+            lhs.text == rhs.text &&
+            lhs.stepNumber == rhs.stepNumber
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(tool)
+        hasher.combine(start.x)
+        hasher.combine(start.y)
+        hasher.combine(end.x)
+        hasher.combine(end.y)
+        hasher.combine(text)
+        hasher.combine(stepNumber)
+    }
 }
 
 enum AnnotationResizeHandle {

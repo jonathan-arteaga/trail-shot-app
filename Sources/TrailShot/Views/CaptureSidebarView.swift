@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct CaptureSidebarView: View {
     @Bindable var store: CaptureStore
 
@@ -53,6 +54,7 @@ struct CaptureSidebarView: View {
     }
 }
 
+@MainActor
 private struct PinnedCaptureRowView: View {
     let pinnedCapture: PinnedCapture
     @Bindable var store: CaptureStore
@@ -102,6 +104,7 @@ private struct PinnedCaptureRowView: View {
     }
 }
 
+@MainActor
 private struct CaptureRowView: View {
     let capture: CaptureItem
     @Bindable var store: CaptureStore

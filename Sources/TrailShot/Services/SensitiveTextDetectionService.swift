@@ -16,6 +16,23 @@ struct SensitiveTextMatch: Identifiable, Hashable {
             stepNumber: 0
         )
     }
+
+    static func == (lhs: SensitiveTextMatch, rhs: SensitiveTextMatch) -> Bool {
+        lhs.id == rhs.id &&
+            lhs.text == rhs.text &&
+            lhs.confidence == rhs.confidence &&
+            lhs.boundingBox.equalTo(rhs.boundingBox)
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(text)
+        hasher.combine(confidence)
+        hasher.combine(boundingBox.minX)
+        hasher.combine(boundingBox.minY)
+        hasher.combine(boundingBox.width)
+        hasher.combine(boundingBox.height)
+    }
 }
 
 struct SensitiveTextDetectionService {

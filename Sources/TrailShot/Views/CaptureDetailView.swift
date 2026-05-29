@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct CaptureDetailView: View {
     @Bindable var store: CaptureStore
 
@@ -13,6 +14,7 @@ struct CaptureDetailView: View {
     }
 }
 
+@MainActor
 private struct PreviewPane: View {
     @Bindable var store: CaptureStore
 
@@ -93,6 +95,7 @@ private struct PreviewPane: View {
     }
 }
 
+@MainActor
 private struct WelcomeCaptureView: View {
     @Bindable var store: CaptureStore
 
@@ -151,6 +154,7 @@ private struct WelcomeCaptureView: View {
     }
 }
 
+@MainActor
 private struct ToolInspectorView: View {
     @Bindable var store: CaptureStore
 
@@ -405,6 +409,7 @@ private struct ToolInspectorView: View {
     }
 }
 
+@MainActor
 private struct PermissionNoticeView: View {
     @Bindable var store: CaptureStore
 
@@ -455,6 +460,7 @@ private struct PermissionNoticeView: View {
     }
 }
 
+@MainActor
 private struct DragExportChipView: View {
     let title: String
     let systemImage: String
@@ -487,6 +493,7 @@ private struct DragExportChipView: View {
     }
 }
 
+@MainActor
 private struct ToolTileView: View {
     let tool: AnnotationTool
     let isSelected: Bool

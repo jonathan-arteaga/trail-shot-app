@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct AnnotationCanvasView: View {
     let capture: CaptureItem
     @Bindable var store: CaptureStore
@@ -146,6 +147,7 @@ struct AnnotationCanvasView: View {
     }
 }
 
+@MainActor
 private struct AnnotationShapeView: View {
     let annotation: CaptureAnnotation
     let imageRect: CGRect
@@ -221,6 +223,7 @@ private struct AnnotationShapeView: View {
     }
 }
 
+@MainActor
 private struct SelectionOutlineView: View {
     let rect: CGRect
 
@@ -233,6 +236,7 @@ private struct SelectionOutlineView: View {
     }
 }
 
+@MainActor
 private struct ResizeHandlesView: View {
     let annotation: CaptureAnnotation
     let imageRect: CGRect
@@ -261,6 +265,7 @@ private struct ResizeHandlePoint: Identifiable {
     }
 }
 
+@MainActor
 private struct ArrowAnnotationView: View {
     let start: CGPoint
     let end: CGPoint

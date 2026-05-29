@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct TrailShotLogo: View {
     let size: CGFloat
 

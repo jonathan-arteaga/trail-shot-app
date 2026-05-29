@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct WindowPickerView: View {
     @Bindable var store: CaptureStore
 
@@ -71,6 +72,7 @@ struct WindowPickerView: View {
     }
 }
 
+@MainActor
 private struct WindowCandidateRow: View {
     let candidate: CaptureWindowCandidate
     let thumbnail: NSImage?
@@ -111,6 +113,7 @@ private struct WindowCandidateRow: View {
     }
 }
 
+@MainActor
 private struct WindowThumbnailView: View {
     let thumbnail: NSImage?
 

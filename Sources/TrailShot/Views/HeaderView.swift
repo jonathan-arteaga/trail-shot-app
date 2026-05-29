@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct HeaderView: View {
     @Bindable var store: CaptureStore
 
