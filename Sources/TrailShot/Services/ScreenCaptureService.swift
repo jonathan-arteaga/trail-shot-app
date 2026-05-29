@@ -43,25 +43,33 @@ struct ScreenCaptureService {
             throw ScreenCaptureError.invalidSelection
         }
 
-        let cgImage: CGImage
-        if #available(macOS 15.2, *) {
-            cgImage = try await SCScreenshotManager.captureImage(in: rect)
-        } else {
-            let displayID = CGMainDisplayID()
-            let scale = NSScreen.main?.backingScaleFactor ?? 2
-            let displayHeight = CGFloat(CGDisplayPixelsHigh(displayID))
-            let pixelRect = CGRect(
-                x: rect.minX * scale,
-                y: displayHeight - rect.maxY * scale,
-                width: rect.width * scale,
-                height: rect.height * scale
-            ).integral
-
-            guard let fallbackImage = CGDisplayCreateImage(displayID, rect: pixelRect) else {
-                throw ScreenCaptureError.captureUnavailable
-            }
-            cgImage = fallbackImage
+        let content = try await SCShareableContent.current
+        guard let display = Self.display(for: rect, in: content.displays) else {
+            throw ScreenCaptureError.captureUnavailable
         }
+
+        let sourceRect = rect.intersection(display.frame)
+        guard sourceRect.width >= 8, sourceRect.height >= 8 else {
+            throw ScreenCaptureError.invalidSelection
+        }
+
+        let localSourceRect = CGRect(
+            x: sourceRect.minX - display.frame.minX,
+            y: sourceRect.minY - display.frame.minY,
+            width: sourceRect.width,
+            height: sourceRect.height
+        ).integral
+        let scale = display.frame.width > 0 ? CGFloat(CGDisplayPixelsWide(display.displayID)) / display.frame.width : (NSScreen.main?.backingScaleFactor ?? 2)
+        let configuration = SCStreamConfiguration()
+        configuration.width = max(Int(localSourceRect.width * scale), 1)
+        configuration.height = max(Int(localSourceRect.height * scale), 1)
+        configuration.sourceRect = localSourceRect
+        configuration.showsCursor = true
+        configuration.capturesAudio = false
+        configuration.captureResolution = .best
+
+        let filter = SCContentFilter(display: display, excludingWindows: [])
+        let cgImage = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration)
         return NSImage(cgImage: cgImage, size: rect.size)
     }
 
@@ -131,5 +139,24 @@ struct ScreenCaptureService {
 
         let cgImage = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration)
         return NSImage(cgImage: cgImage, size: CGSize(width: cgImage.width, height: cgImage.height))
+    }
+
+    private static func display(for rect: CGRect, in displays: [SCDisplay]) -> SCDisplay? {
+        displays
+            .map { display in
+                (display: display, area: display.frame.intersection(rect).area)
+            }
+            .filter { $0.area > 0 }
+            .max { lhs, rhs in lhs.area < rhs.area }?
+            .display
+            ?? displays.first(where: { $0.displayID == CGMainDisplayID() })
+            ?? displays.first
+    }
+}
+
+private extension CGRect {
+    var area: CGFloat {
+        guard !isNull, !isEmpty else { return 0 }
+        return width * height
     }
 }
