@@ -439,6 +439,7 @@ private struct RecordingTrimSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var start: TimeInterval = 0
     @State private var end: TimeInterval = 1
+    @State private var duration: TimeInterval?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -457,7 +458,7 @@ private struct RecordingTrimSheet: View {
                 Spacer()
             }
 
-            if duration > 0 {
+            if let duration, duration > 0 {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
                         Text("Start")
@@ -481,6 +482,9 @@ private struct RecordingTrimSheet: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+            } else if duration == nil {
+                ContentUnavailableView("Loading duration", systemImage: "film.stack")
+                    .frame(height: 120)
             } else {
                 ContentUnavailableView("Duration unavailable", systemImage: "film.stack")
                     .frame(height: 120)
@@ -500,19 +504,17 @@ private struct RecordingTrimSheet: View {
                     }
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(duration <= 0 || end - start < 0.25)
+                .disabled((duration ?? 0) <= 0 || end - start < 0.25)
                 .keyboardShortcut(.defaultAction)
             }
         }
         .padding(20)
         .frame(width: 420)
-        .onAppear {
-            end = max(duration, 1)
+        .task(id: recording.id) {
+            let loadedDuration = await store.recordingDuration(of: recording)
+            duration = loadedDuration
+            end = max(loadedDuration, 1)
         }
-    }
-
-    private var duration: TimeInterval {
-        store.recordingDuration(of: recording)
     }
 
     private static func timeText(_ seconds: TimeInterval) -> String {

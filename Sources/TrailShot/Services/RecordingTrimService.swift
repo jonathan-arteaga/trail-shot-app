@@ -19,38 +19,30 @@ enum RecordingTrimError: LocalizedError {
 }
 
 struct RecordingTrimService {
-    func duration(of url: URL) -> TimeInterval {
+    func duration(of url: URL) async -> TimeInterval {
         let asset = AVURLAsset(url: url)
-        let seconds = asset.duration.seconds
+
+        guard let duration = try? await asset.load(.duration) else {
+            return 0
+        }
+
+        let seconds = duration.seconds
         return seconds.isFinite ? max(seconds, 0) : 0
     }
 
     func trim(url: URL, start: TimeInterval, end: TimeInterval) async throws -> URL {
         let asset = AVURLAsset(url: url)
-        let duration = self.duration(of: url)
+        let duration = await self.duration(of: url)
         let timeRange = try Self.validatedTimeRange(start: start, end: end, duration: duration)
         guard let exportSession = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetPassthrough) else {
             throw RecordingTrimError.exportUnavailable
         }
 
         let outputURL = try makeTrimmedOutputURL(for: url)
-        exportSession.outputURL = outputURL
-        exportSession.outputFileType = .mov
         exportSession.timeRange = timeRange
         exportSession.shouldOptimizeForNetworkUse = true
 
-        try await withCheckedThrowingContinuation { continuation in
-            exportSession.exportAsynchronously {
-                switch exportSession.status {
-                case .completed:
-                    continuation.resume()
-                case .failed, .cancelled:
-                    continuation.resume(throwing: exportSession.error ?? RecordingTrimError.exportFailed)
-                default:
-                    continuation.resume(throwing: RecordingTrimError.exportFailed)
-                }
-            }
-        }
+        try await exportSession.export(to: outputURL, as: .mov)
 
         return outputURL
     }

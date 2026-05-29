@@ -439,8 +439,8 @@ final class CaptureStore {
         }
     }
 
-    func recordingDuration(of recording: RecordingItem) -> TimeInterval {
-        recordingTrimService.duration(of: recording.url)
+    func recordingDuration(of recording: RecordingItem) async -> TimeInterval {
+        await recordingTrimService.duration(of: recording.url)
     }
 
     func trimRecording(_ recording: RecordingItem, start: TimeInterval, end: TimeInterval) async {
