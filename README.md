@@ -65,8 +65,15 @@ swift test
 ./script/package_dmg.sh
 ```
 
-By default this creates a hardened-runtime, ad-hoc signed development build. For
-a distributable Developer ID build:
+By default this runs tests, creates a hardened-runtime, ad-hoc signed
+development build, packages `dist/TrailShot.dmg`, and validates the artifact.
+To also launch-verify the app while packaging locally:
+
+```bash
+TRAILSHOT_PACKAGE_VERIFY_LAUNCH=1 ./script/package_dmg.sh
+```
+
+For a distributable Developer ID build:
 
 ```bash
 TRAILSHOT_CODE_SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" ./script/package_dmg.sh
@@ -86,6 +93,18 @@ TRAILSHOT_NOTARY_PROFILE="notarytool-profile" ./script/notarize_release.sh
 
 The current DMG is not notarized yet. A broad internal distribution should use
 Developer ID signing, notarization, and stapling before release.
+
+## GitHub Releases
+
+The repo includes GitHub Actions for CI and downloadable DMGs:
+
+- Pushes and pull requests run tests, build the app bundle, package a DMG, and
+  upload the DMG as a workflow artifact.
+- Tags that start with `v`, such as `v0.1.0`, create or update a GitHub Release
+  with `TrailShot.dmg` attached.
+- The release workflow can also be run manually with a tag input.
+
+GitHub-built DMGs are ad-hoc signed until Developer ID signing secrets are added.
 
 ## Product Direction
 

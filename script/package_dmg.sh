@@ -8,8 +8,15 @@ APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
 DMG_PATH="$DIST_DIR/$APP_NAME.dmg"
 STAGING_DIR="$DIST_DIR/dmg-staging"
 CODE_SIGN_IDENTITY="${TRAILSHOT_CODE_SIGN_IDENTITY:--}"
+VERIFY_LAUNCH="${TRAILSHOT_PACKAGE_VERIFY_LAUNCH:-0}"
 
-"$ROOT_DIR/script/build_and_run.sh" --verify
+swift test
+
+if [[ "$VERIFY_LAUNCH" == "1" ]]; then
+  "$ROOT_DIR/script/build_and_run.sh" --verify
+else
+  "$ROOT_DIR/script/build_and_run.sh" --bundle-only
+fi
 
 pkill -x "$APP_NAME" >/dev/null 2>&1 || true
 rm -rf "$STAGING_DIR" "$DMG_PATH"
