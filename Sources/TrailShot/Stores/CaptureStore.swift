@@ -21,6 +21,8 @@ final class CaptureStore {
     var lastRecordingURL: URL?
     var recordings: [RecordingItem]
     var areGlobalShortcutsEnabled: Bool
+    var isAutoCopyAfterCaptureEnabled: Bool
+    var isQuickAccessAfterCaptureEnabled: Bool
     var isAutoRedactAfterCaptureEnabled: Bool
     var globalShortcuts: [GlobalShortcut]
     var globalShortcutRegistrations: [GlobalShortcutRegistration] = []
@@ -52,6 +54,8 @@ final class CaptureStore {
         captureLibraryService = CaptureLibraryService(directory: captureLibraryDirectory)
         hasScreenRecordingPermission = permissionService.hasPermission()
         areGlobalShortcutsEnabled = userDefaults.object(forKey: PreferencesKeys.globalShortcutsEnabled) as? Bool ?? true
+        isAutoCopyAfterCaptureEnabled = userDefaults.object(forKey: PreferencesKeys.autoCopyAfterCaptureEnabled) as? Bool ?? true
+        isQuickAccessAfterCaptureEnabled = userDefaults.object(forKey: PreferencesKeys.quickAccessAfterCaptureEnabled) as? Bool ?? true
         isAutoRedactAfterCaptureEnabled = userDefaults.object(forKey: PreferencesKeys.autoRedactAfterCaptureEnabled) as? Bool ?? false
         globalShortcuts = Self.loadGlobalShortcuts(from: userDefaults)
         recordings = Self.loadRecordings(from: recordingsDirectory)
@@ -114,6 +118,16 @@ final class CaptureStore {
     func setAutoRedactAfterCaptureEnabled(_ enabled: Bool) {
         isAutoRedactAfterCaptureEnabled = enabled
         userDefaults.set(enabled, forKey: PreferencesKeys.autoRedactAfterCaptureEnabled)
+    }
+
+    func setAutoCopyAfterCaptureEnabled(_ enabled: Bool) {
+        isAutoCopyAfterCaptureEnabled = enabled
+        userDefaults.set(enabled, forKey: PreferencesKeys.autoCopyAfterCaptureEnabled)
+    }
+
+    func setQuickAccessAfterCaptureEnabled(_ enabled: Bool) {
+        isQuickAccessAfterCaptureEnabled = enabled
+        userDefaults.set(enabled, forKey: PreferencesKeys.quickAccessAfterCaptureEnabled)
     }
 
     private func configureGlobalShortcuts() {
@@ -779,21 +793,25 @@ final class CaptureStore {
         selectedCaptureID = item.id
         selectedAnnotationID = nil
         persistCaptureLibrary()
-        exportService.copyToClipboard(image)
+        if isAutoCopyAfterCaptureEnabled {
+            exportService.copyToClipboard(image)
+        }
         if isAutoRedactAfterCaptureEnabled {
             Task { [weak self] in
                 await self?.autoRedactCapture(id: item.id, isAutomatic: true)
             }
         }
-        quickAccessService.show(
-            captureName: item.name,
-            copy: { [weak self] in self?.copySelectedCapture() },
-            save: { [weak self] in Task { await self?.saveSelectedCapture() } },
-            pin: { [weak self] in self?.pinSelectedCapture() },
-            annotate: {
-                NSApp.activate(ignoringOtherApps: true)
-            }
-        )
+        if isQuickAccessAfterCaptureEnabled {
+            quickAccessService.show(
+                captureName: item.name,
+                copy: { [weak self] in self?.copySelectedCapture() },
+                save: { [weak self] in Task { await self?.saveSelectedCapture() } },
+                pin: { [weak self] in self?.pinSelectedCapture() },
+                annotate: {
+                    NSApp.activate(ignoringOtherApps: true)
+                }
+            )
+        }
     }
 
     private func rememberRecording(_ url: URL) {
@@ -897,6 +915,8 @@ private let screenRecordingPermissionMessage = "Screen Recording permission requ
 
 private enum PreferencesKeys {
     static let globalShortcutsEnabled = "globalShortcutsEnabled"
+    static let autoCopyAfterCaptureEnabled = "autoCopyAfterCaptureEnabled"
+    static let quickAccessAfterCaptureEnabled = "quickAccessAfterCaptureEnabled"
     static let autoRedactAfterCaptureEnabled = "autoRedactAfterCaptureEnabled"
     static let globalShortcuts = "globalShortcuts"
 }

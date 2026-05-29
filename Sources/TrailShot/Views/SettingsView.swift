@@ -6,6 +6,11 @@ struct SettingsView: View {
 
     var body: some View {
         TabView {
+            capturePane
+                .tabItem {
+                    Label("Capture", systemImage: "camera.viewfinder")
+                }
+
             shortcutsPane
                 .tabItem {
                     Label("Shortcuts", systemImage: "keyboard")
@@ -17,6 +22,34 @@ struct SettingsView: View {
                 }
         }
         .frame(width: 520, height: 430)
+    }
+
+    private var capturePane: some View {
+        Form {
+            Section("After Capture") {
+                Toggle("Copy new screenshots to clipboard", isOn: autoCopyAfterCaptureEnabled)
+                Text("Keeps the fastest path one click away in chat, documents, and Salesforce workflows.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Toggle("Show quick-access bubble", isOn: quickAccessAfterCaptureEnabled)
+                Text("Shows copy, save, pin, and annotate actions right after each capture.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Section("Safety") {
+                Toggle("Auto-detect sensitive text after capture", isOn: autoRedactAfterCaptureEnabled)
+                Text("Scans new screenshots on this Mac and covers matching text with editable redaction blocks.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .formStyle(.grouped)
+        .padding()
     }
 
     private var shortcutsPane: some View {
@@ -106,12 +139,6 @@ struct SettingsView: View {
             }
 
             Section("Local First") {
-                Toggle("Auto-detect sensitive text after capture", isOn: autoRedactAfterCaptureEnabled)
-                Text("When enabled, new screenshots are scanned on this Mac and matching text is covered with editable redaction blocks.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
                 Label("Screenshots stay on this Mac unless you share them.", systemImage: "internaldrive")
                 Label("Sensitive-text detection runs locally with Vision OCR.", systemImage: "text.viewfinder")
                 Label("Recordings save to Movies/TrailShot.", systemImage: "film")
@@ -125,6 +152,20 @@ struct SettingsView: View {
         Binding(
             get: { store.areGlobalShortcutsEnabled },
             set: { store.setGlobalShortcutsEnabled($0) }
+        )
+    }
+
+    private var autoCopyAfterCaptureEnabled: Binding<Bool> {
+        Binding(
+            get: { store.isAutoCopyAfterCaptureEnabled },
+            set: { store.setAutoCopyAfterCaptureEnabled($0) }
+        )
+    }
+
+    private var quickAccessAfterCaptureEnabled: Binding<Bool> {
+        Binding(
+            get: { store.isQuickAccessAfterCaptureEnabled },
+            set: { store.setQuickAccessAfterCaptureEnabled($0) }
         )
     }
 
