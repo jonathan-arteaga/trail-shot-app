@@ -229,27 +229,41 @@ private struct ToolInspectorView: View {
                 }
                 .disabled(store.isRecording)
 
-                if let lastRecordingURL = store.lastRecordingURL {
-                    Text(lastRecordingURL.lastPathComponent)
+                if let latestRecording = store.recordings.first {
+                    Text(latestRecording.name)
+                        .font(.caption2.weight(.medium))
+                        .lineLimit(1)
+                    Text(latestRecording.detailText)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                     HStack {
                         Button {
-                            store.openLastRecording()
+                            store.openRecording(latestRecording)
                         } label: {
                             Label("Open", systemImage: "play.circle")
                         }
                         Button {
-                            store.revealLastRecording()
+                            store.revealRecording(latestRecording)
                         } label: {
                             Label("Reveal", systemImage: "folder")
                         }
+                    }
+                    if store.recordings.count > 1 {
+                        Text("\(store.recordings.count) recordings saved locally.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                     }
                 } else {
                     Text("Saved locally to Movies/TrailShot.")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
+                }
+
+                Button {
+                    store.refreshRecordings()
+                } label: {
+                    Label("Refresh recordings", systemImage: "arrow.clockwise")
                 }
             }
             .font(.caption)

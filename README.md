@@ -26,6 +26,7 @@ copy or save instantly, and keep the full workflow local.
 - Presentation-ready framed copy/save export
 - Drag-out PNG sharing for annotated and framed captures
 - Local main-display and selected-area screen recording to Movies/TrailShot
+- Recording history for saved `.mov` files with open, reveal, refresh, and trash controls
 - Floating quick-access bubble after capture
 - Pin selected captures to the screen
 - Pinned capture organizer with focus, close, and close-all controls

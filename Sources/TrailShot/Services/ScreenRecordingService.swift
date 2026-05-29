@@ -26,12 +26,24 @@ enum ScreenRecordingError: LocalizedError {
 }
 
 final class ScreenRecordingService: NSObject, @unchecked Sendable {
+    static var defaultRecordingsDirectory: URL {
+        let moviesDirectory = FileManager.default.urls(for: .moviesDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        return moviesDirectory.appendingPathComponent("TrailShot", isDirectory: true)
+    }
+
     private let outputQueue = DispatchQueue(label: "com.salesforce.trailshot.recording")
+    private let outputDirectory: URL
     private var stream: SCStream?
     private var assetWriter: AVAssetWriter?
     private var videoInput: AVAssetWriterInput?
     private var startTime: CMTime?
     private var outputURL: URL?
+
+    init(outputDirectory: URL = ScreenRecordingService.defaultRecordingsDirectory) {
+        self.outputDirectory = outputDirectory
+        super.init()
+    }
 
     var isRecording: Bool {
         stream != nil
@@ -69,7 +81,7 @@ final class ScreenRecordingService: NSObject, @unchecked Sendable {
 
         let width = Int(localSourceRect?.width ?? CGFloat(CGDisplayPixelsWide(display.displayID)))
         let height = Int(localSourceRect?.height ?? CGFloat(CGDisplayPixelsHigh(display.displayID)))
-        let url = try Self.makeOutputURL()
+        let url = try makeOutputURL()
         let writer = try AVAssetWriter(outputURL: url, fileType: .mov)
         let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
             AVVideoCodecKey: AVVideoCodecType.h264,
@@ -164,14 +176,11 @@ final class ScreenRecordingService: NSObject, @unchecked Sendable {
         outputURL = nil
     }
 
-    private static func makeOutputURL() throws -> URL {
-        let moviesDirectory = FileManager.default.urls(for: .moviesDirectory, in: .userDomainMask).first
-            ?? FileManager.default.temporaryDirectory
-        let directory = moviesDirectory.appendingPathComponent("TrailShot", isDirectory: true)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    private func makeOutputURL() throws -> URL {
+        try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
 
         let filename = "TrailShot-Recording-\(Self.timestamp()).mov"
-        let url = directory.appendingPathComponent(filename)
+        let url = outputDirectory.appendingPathComponent(filename)
         if FileManager.default.fileExists(atPath: url.path) {
             try FileManager.default.removeItem(at: url)
         }

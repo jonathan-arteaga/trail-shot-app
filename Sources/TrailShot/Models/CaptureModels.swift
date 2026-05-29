@@ -39,6 +39,22 @@ struct PinnedCapture: Identifiable {
     let pixelSize: CGSize
 }
 
+struct RecordingItem: Identifiable, Hashable {
+    let url: URL
+    let createdAt: Date
+    let fileSize: Int64
+
+    var id: String { url.path }
+
+    var name: String {
+        url.deletingPathExtension().lastPathComponent
+    }
+
+    var detailText: String {
+        "\(createdAt.formatted(date: .abbreviated, time: .shortened)) • \(ByteCountFormatter.string(fromByteCount: fileSize, countStyle: .file))"
+    }
+}
+
 enum CaptureStatus: Equatable {
     case ready
     case selectingArea

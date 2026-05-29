@@ -19,13 +19,14 @@ final class CaptureStore {
     var isRecording = false
     var recordingStartedAt: Date?
     var lastRecordingURL: URL?
+    var recordings: [RecordingItem]
     var areGlobalShortcutsEnabled: Bool
     var globalShortcuts: [GlobalShortcut]
     var globalShortcutRegistrations: [GlobalShortcutRegistration] = []
     var shortcutEditingMessage: String?
 
     private let captureService = ScreenCaptureService()
-    private let recordingService = ScreenRecordingService()
+    private let recordingService: ScreenRecordingService
     private let selectionService = AreaSelectionService()
     private let hoverWindowSelectionService = HoverWindowSelectionService()
     private let exportService = ImageExportService()
@@ -35,12 +36,20 @@ final class CaptureStore {
     private let permissionService = ScreenRecordingPermissionService()
     private let globalHotKeyService = GlobalHotKeyService()
     private let userDefaults: UserDefaults
+    private let recordingsDirectory: URL
 
-    init(userDefaults: UserDefaults = .standard) {
+    init(
+        userDefaults: UserDefaults = .standard,
+        recordingsDirectory: URL = ScreenRecordingService.defaultRecordingsDirectory
+    ) {
         self.userDefaults = userDefaults
+        self.recordingsDirectory = recordingsDirectory
+        recordingService = ScreenRecordingService(outputDirectory: recordingsDirectory)
         hasScreenRecordingPermission = permissionService.hasPermission()
         areGlobalShortcutsEnabled = userDefaults.object(forKey: PreferencesKeys.globalShortcutsEnabled) as? Bool ?? true
         globalShortcuts = Self.loadGlobalShortcuts(from: userDefaults)
+        recordings = Self.loadRecordings(from: recordingsDirectory)
+        lastRecordingURL = recordings.first?.url
     }
 
     var selectedCapture: CaptureItem? {
@@ -337,7 +346,7 @@ final class CaptureStore {
 
         do {
             let url = try await recordingService.stopRecording()
-            lastRecordingURL = url
+            rememberRecording(url)
             isRecording = false
             recordingStartedAt = nil
             status = .working("Recording saved")
@@ -368,6 +377,39 @@ final class CaptureStore {
     func openLastRecording() {
         guard let lastRecordingURL else { return }
         NSWorkspace.shared.open(lastRecordingURL)
+    }
+
+    func refreshRecordings() {
+        recordings = Self.loadRecordings(from: recordingsDirectory)
+        lastRecordingURL = recordings.first?.url ?? lastRecordingURL
+    }
+
+    func openRecording(_ recording: RecordingItem) {
+        NSWorkspace.shared.open(recording.url)
+    }
+
+    func revealRecording(_ recording: RecordingItem) {
+        NSWorkspace.shared.activateFileViewerSelecting([recording.url])
+    }
+
+    func deleteRecording(_ recording: RecordingItem) {
+        do {
+            if FileManager.default.fileExists(atPath: recording.url.path) {
+                var trashedURL: NSURL?
+                try FileManager.default.trashItem(at: recording.url, resultingItemURL: &trashedURL)
+            }
+            recordings.removeAll { $0.id == recording.id }
+            if lastRecordingURL == recording.url {
+                lastRecordingURL = recordings.first?.url
+            }
+            status = .working("Recording moved to Trash")
+            Task { [weak self] in
+                try? await Task.sleep(for: .seconds(1.4))
+                self?.status = .ready
+            }
+        } catch {
+            status = .failed(error.localizedDescription)
+        }
     }
 
     private func loadWindowThumbnails(for candidates: [CaptureWindowCandidate]) async {
@@ -686,6 +728,47 @@ final class CaptureStore {
             annotate: {
                 NSApp.activate(ignoringOtherApps: true)
             }
+        )
+    }
+
+    private func rememberRecording(_ url: URL) {
+        guard let recording = Self.recordingItem(for: url) else {
+            lastRecordingURL = url
+            return
+        }
+
+        recordings.removeAll { $0.id == recording.id }
+        recordings.insert(recording, at: 0)
+        lastRecordingURL = url
+    }
+
+    private static func loadRecordings(from directory: URL) -> [RecordingItem] {
+        guard let urls = try? FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.creationDateKey, .contentModificationDateKey, .fileSizeKey, .isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return []
+        }
+
+        return urls
+            .filter { $0.pathExtension.lowercased() == "mov" }
+            .compactMap(recordingItem(for:))
+            .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    private static func recordingItem(for url: URL) -> RecordingItem? {
+        guard
+            let values = try? url.resourceValues(forKeys: [.creationDateKey, .contentModificationDateKey, .fileSizeKey, .isRegularFileKey]),
+            values.isRegularFile ?? true
+        else {
+            return nil
+        }
+
+        return RecordingItem(
+            url: url,
+            createdAt: values.creationDate ?? values.contentModificationDate ?? Date(),
+            fileSize: Int64(values.fileSize ?? 0)
         )
     }
 
