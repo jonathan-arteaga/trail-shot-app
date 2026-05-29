@@ -540,6 +540,12 @@ final class CaptureStore {
         persistCaptureLibrary()
     }
 
+    func toggleFavorite(captureID: CaptureItem.ID) {
+        guard let index = captures.firstIndex(where: { $0.id == captureID }) else { return }
+        captures[index].isFavorite.toggle()
+        persistCaptureLibrary()
+    }
+
     func deleteSelectedCapture() {
         guard let capture = selectedCapture else { return }
         deleteCapture(id: capture.id)

@@ -20,6 +20,7 @@ struct CaptureItem: Identifiable, Hashable {
     let image: NSImage
     let pixelSize: CGSize
     var name: String
+    var isFavorite: Bool
     var annotations: [CaptureAnnotation] = []
 
     init(
@@ -29,6 +30,7 @@ struct CaptureItem: Identifiable, Hashable {
         image: NSImage,
         pixelSize: CGSize,
         name: String,
+        isFavorite: Bool = false,
         annotations: [CaptureAnnotation] = []
     ) {
         self.id = id
@@ -37,6 +39,7 @@ struct CaptureItem: Identifiable, Hashable {
         self.image = image
         self.pixelSize = pixelSize
         self.name = name
+        self.isFavorite = isFavorite
         self.annotations = annotations
     }
 

@@ -44,6 +44,7 @@ struct CaptureLibraryService {
                 image: image,
                 pixelSize: stored.pixelSize.cgSize,
                 name: stored.name,
+                isFavorite: stored.isFavorite ?? false,
                 annotations: stored.annotations.map(\.captureAnnotation)
             )
         }
@@ -66,6 +67,7 @@ struct CaptureLibraryService {
                 kind: capture.kind,
                 createdAt: capture.createdAt,
                 name: capture.name,
+                isFavorite: capture.isFavorite,
                 pixelSize: CodableSize(capture.pixelSize),
                 imageFilename: imageFilename,
                 annotations: capture.annotations.map(StoredAnnotation.init)
@@ -106,6 +108,7 @@ private struct StoredCapture: Codable {
     let kind: CaptureKind
     let createdAt: Date
     let name: String
+    let isFavorite: Bool?
     let pixelSize: CodableSize
     let imageFilename: String
     let annotations: [StoredAnnotation]

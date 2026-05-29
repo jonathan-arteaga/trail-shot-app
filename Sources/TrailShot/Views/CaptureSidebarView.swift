@@ -3,6 +3,8 @@ import SwiftUI
 @MainActor
 struct CaptureSidebarView: View {
     @Bindable var store: CaptureStore
+    @State private var searchText = ""
+    @State private var showFavoritesOnly = false
 
     var body: some View {
         List(selection: $store.selectedCaptureID) {
@@ -48,13 +50,17 @@ struct CaptureSidebarView: View {
                 }
             }
 
-            Section("Captures") {
+            Section(showFavoritesOnly ? "Favorite Captures" : "Captures") {
                 if store.captures.isEmpty {
                     ContentUnavailableView("No captures yet", systemImage: "camera.viewfinder", description: Text("Use Capture to start a TrailShot."))
                         .frame(maxWidth: .infinity)
                         .listRowSeparator(.hidden)
+                } else if filteredCaptures.isEmpty {
+                    ContentUnavailableView(emptyFilterTitle, systemImage: emptyFilterSymbol, description: Text(emptyFilterDescription))
+                        .frame(maxWidth: .infinity)
+                        .listRowSeparator(.hidden)
                 } else {
-                    ForEach(store.captures) { capture in
+                    ForEach(filteredCaptures) { capture in
                         CaptureRowView(capture: capture, store: store)
                             .tag(capture.id)
                     }
@@ -62,16 +68,51 @@ struct CaptureSidebarView: View {
             }
         }
         .listStyle(.sidebar)
+        .searchable(text: $searchText, placement: .sidebar, prompt: "Search captures")
         .safeAreaInset(edge: .top) {
             HStack(spacing: 8) {
                 TrailShotLogo(size: 24)
                 Text("TrailShot")
                     .font(.headline)
                 Spacer()
+                Button {
+                    showFavoritesOnly.toggle()
+                } label: {
+                    Image(systemName: showFavoritesOnly ? "star.fill" : "star")
+                        .foregroundStyle(showFavoritesOnly ? Color.accentColor : Color.secondary)
+                }
+                .buttonStyle(.plain)
+                .help(showFavoritesOnly ? "Show all captures" : "Show favorites")
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
         }
+    }
+
+    private var filteredCaptures: [CaptureItem] {
+        store.captures.filter { capture in
+            (!showFavoritesOnly || capture.isFavorite) && capture.matchesSidebarSearch(searchText)
+        }
+    }
+
+    private var emptyFilterTitle: String {
+        if showFavoritesOnly && searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "No favorite captures"
+        }
+
+        return "No matching captures"
+    }
+
+    private var emptyFilterSymbol: String {
+        showFavoritesOnly ? "star" : "magnifyingglass"
+    }
+
+    private var emptyFilterDescription: String {
+        if showFavoritesOnly && searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "Star screenshots you want to find again quickly."
+        }
+
+        return "Try a capture name, type, annotation, or size."
     }
 }
 
@@ -215,9 +256,27 @@ private struct CaptureRowView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+            Spacer(minLength: 4)
+
+            Button {
+                store.toggleFavorite(captureID: capture.id)
+            } label: {
+                Image(systemName: capture.isFavorite ? "star.fill" : "star")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(capture.isFavorite ? Color.accentColor : Color.secondary.opacity(0.7))
+            }
+            .buttonStyle(.plain)
+            .help(capture.isFavorite ? "Remove favorite" : "Favorite")
         }
         .padding(.vertical, 4)
         .contextMenu {
+            Button(capture.isFavorite ? "Remove Favorite" : "Favorite") {
+                store.toggleFavorite(captureID: capture.id)
+            }
+
+            Divider()
+
             Button("Copy") {
                 store.selectedCaptureID = capture.id
                 store.copySelectedCapture()
@@ -233,6 +292,32 @@ private struct CaptureRowView: View {
             Button("Delete", role: .destructive) {
                 store.deleteCapture(id: capture.id)
             }
+        }
+    }
+}
+
+private extension CaptureItem {
+    func matchesSidebarSearch(_ searchText: String) -> Bool {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !query.isEmpty else { return true }
+
+        let searchableText = [
+            name,
+            kind.rawValue,
+            "\(Int(pixelSize.width))",
+            "\(Int(pixelSize.height))",
+            "\(Int(pixelSize.width)) x \(Int(pixelSize.height))"
+        ]
+        .joined(separator: " ")
+        .lowercased()
+
+        if searchableText.contains(query) {
+            return true
+        }
+
+        return annotations.contains { annotation in
+            annotation.text.lowercased().contains(query) ||
+                annotation.tool.rawValue.lowercased().contains(query)
         }
     }
 }

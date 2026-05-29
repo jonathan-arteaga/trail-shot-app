@@ -19,6 +19,7 @@ final class CaptureLibraryServiceTests: XCTestCase {
             image: Self.makeImage(),
             pixelSize: CGSize(width: 80, height: 50),
             name: "Persisted",
+            isFavorite: true,
             annotations: [
                 CaptureAnnotation(
                     id: annotationID,
@@ -37,6 +38,7 @@ final class CaptureLibraryServiceTests: XCTestCase {
         XCTAssertEqual(loaded.count, 1)
         XCTAssertEqual(loaded.first?.id, captureID)
         XCTAssertEqual(loaded.first?.name, "Persisted")
+        XCTAssertEqual(loaded.first?.isFavorite, true)
         XCTAssertEqual(loaded.first?.annotations.first?.id, annotationID)
         XCTAssertEqual(loaded.first?.annotations.first?.text, "Hello")
         XCTAssertEqual(loaded.first?.pixelSize.width ?? 0, 80, accuracy: 0.1)

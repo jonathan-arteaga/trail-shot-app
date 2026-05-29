@@ -31,6 +31,22 @@ final class CaptureStoreHistoryTests: XCTestCase {
     }
 
     @MainActor
+    func testFavoriteStatePersistsWithCaptureHistory() {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("TrailShotFavoriteHistoryTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let capture = makeCapture(name: "Important")
+        let store = CaptureStore(captureLibraryDirectory: directory)
+        store.captures = [capture]
+        store.toggleFavorite(captureID: capture.id)
+
+        let restoredStore = CaptureStore(captureLibraryDirectory: directory)
+        XCTAssertEqual(restoredStore.captures.first?.id, capture.id)
+        XCTAssertEqual(restoredStore.captures.first?.isFavorite, true)
+    }
+
+    @MainActor
     func testRecordingHistoryLoadsFromDirectory() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("TrailShotTests-\(UUID().uuidString)", isDirectory: true)
