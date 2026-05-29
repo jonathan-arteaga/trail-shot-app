@@ -5,7 +5,10 @@ import XCTest
 final class CaptureStoreHistoryTests: XCTestCase {
     @MainActor
     func testRenameDeleteAndClearHistory() {
-        let store = CaptureStore()
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("TrailShotStoreHistoryTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = CaptureStore(captureLibraryDirectory: directory)
         let first = makeCapture(name: "First")
         let second = makeCapture(name: "Second")
         store.captures = [first, second]
@@ -46,7 +49,11 @@ final class CaptureStoreHistoryTests: XCTestCase {
         try FileManager.default.setAttributes([.creationDate: olderDate, .modificationDate: olderDate], ofItemAtPath: olderURL.path)
         try FileManager.default.setAttributes([.creationDate: newerDate, .modificationDate: newerDate], ofItemAtPath: newerURL.path)
 
-        let store = CaptureStore(recordingsDirectory: directory)
+        let captureDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("TrailShotCaptureHistoryTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: captureDirectory) }
+
+        let store = CaptureStore(recordingsDirectory: directory, captureLibraryDirectory: captureDirectory)
 
         XCTAssertEqual(store.recordings.map { $0.url.resolvingSymlinksInPath() }, [newerURL, olderURL].map { $0.resolvingSymlinksInPath() })
         XCTAssertEqual(store.lastRecordingURL?.resolvingSymlinksInPath(), newerURL.resolvingSymlinksInPath())

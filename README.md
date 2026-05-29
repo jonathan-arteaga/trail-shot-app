@@ -32,6 +32,7 @@ copy or save instantly, and keep the full workflow local.
 - Pin selected captures to the screen
 - Pinned capture organizer with focus, close, and close-all controls
 - Capture history sidebar with rename, delete, and clear-history controls
+- Persistent local capture history with annotations restored from Application Support
 - Minimal TrailShot logo/icon with a subtle Astro nod
 - Project-local run script and DMG packaging script
 

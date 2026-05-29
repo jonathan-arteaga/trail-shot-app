@@ -2,7 +2,7 @@ import AppKit
 import CoreGraphics
 import Foundation
 
-enum CaptureKind: String, CaseIterable, Identifiable {
+enum CaptureKind: String, CaseIterable, Identifiable, Codable {
     case area = "Area"
     case fullScreen = "Full Screen"
     case window = "Window"
@@ -14,13 +14,31 @@ enum CaptureKind: String, CaseIterable, Identifiable {
 }
 
 struct CaptureItem: Identifiable, Hashable {
-    let id = UUID()
+    let id: UUID
     let kind: CaptureKind
     let createdAt: Date
     let image: NSImage
     let pixelSize: CGSize
     var name: String
     var annotations: [CaptureAnnotation] = []
+
+    init(
+        id: UUID = UUID(),
+        kind: CaptureKind,
+        createdAt: Date,
+        image: NSImage,
+        pixelSize: CGSize,
+        name: String,
+        annotations: [CaptureAnnotation] = []
+    ) {
+        self.id = id
+        self.kind = kind
+        self.createdAt = createdAt
+        self.image = image
+        self.pixelSize = pixelSize
+        self.name = name
+        self.annotations = annotations
+    }
 
     static func == (lhs: CaptureItem, rhs: CaptureItem) -> Bool {
         lhs.id == rhs.id
@@ -94,7 +112,7 @@ struct CaptureWindowCandidate: Identifiable, Hashable {
     }
 }
 
-enum AnnotationTool: String, CaseIterable, Identifiable {
+enum AnnotationTool: String, CaseIterable, Identifiable, Codable {
     case move = "Move"
     case arrow = "Arrow"
     case rectangle = "Shape"
@@ -123,12 +141,28 @@ enum AnnotationTool: String, CaseIterable, Identifiable {
 }
 
 struct CaptureAnnotation: Identifiable, Hashable {
-    let id = UUID()
+    let id: UUID
     var tool: AnnotationTool
     var start: CGPoint
     var end: CGPoint
     var text: String = ""
     var stepNumber: Int = 0
+
+    init(
+        id: UUID = UUID(),
+        tool: AnnotationTool,
+        start: CGPoint,
+        end: CGPoint,
+        text: String = "",
+        stepNumber: Int = 0
+    ) {
+        self.id = id
+        self.tool = tool
+        self.start = start
+        self.end = end
+        self.text = text
+        self.stepNumber = stepNumber
+    }
 
     static func == (lhs: CaptureAnnotation, rhs: CaptureAnnotation) -> Bool {
         lhs.id == rhs.id &&

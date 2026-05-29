@@ -16,12 +16,12 @@ final class GlobalShortcutTests: XCTestCase {
         let defaults = UserDefaults(suiteName: "TrailShotTests.GlobalShortcutTests")!
         defaults.removePersistentDomain(forName: "TrailShotTests.GlobalShortcutTests")
 
-        let store = CaptureStore(userDefaults: defaults)
+        let store = CaptureStore(userDefaults: defaults, captureLibraryDirectory: Self.temporaryCaptureDirectory())
         XCTAssertTrue(store.areGlobalShortcutsEnabled)
 
         store.setGlobalShortcutsEnabled(false)
 
-        let restoredStore = CaptureStore(userDefaults: defaults)
+        let restoredStore = CaptureStore(userDefaults: defaults, captureLibraryDirectory: Self.temporaryCaptureDirectory())
         XCTAssertFalse(restoredStore.areGlobalShortcutsEnabled)
     }
 
@@ -30,7 +30,7 @@ final class GlobalShortcutTests: XCTestCase {
         let defaults = UserDefaults(suiteName: "TrailShotTests.CustomGlobalShortcutTests")!
         defaults.removePersistentDomain(forName: "TrailShotTests.CustomGlobalShortcutTests")
 
-        let store = CaptureStore(userDefaults: defaults)
+        let store = CaptureStore(userDefaults: defaults, captureLibraryDirectory: Self.temporaryCaptureDirectory())
         store.updateGlobalShortcut(
             GlobalShortcut(
                 action: .captureArea,
@@ -39,7 +39,7 @@ final class GlobalShortcutTests: XCTestCase {
             )
         )
 
-        let restoredStore = CaptureStore(userDefaults: defaults)
+        let restoredStore = CaptureStore(userDefaults: defaults, captureLibraryDirectory: Self.temporaryCaptureDirectory())
         XCTAssertEqual(restoredStore.shortcut(for: .captureArea).displayValue, "⌃⌥6")
     }
 
@@ -47,7 +47,7 @@ final class GlobalShortcutTests: XCTestCase {
     func testDuplicateShortcutIsRejected() {
         let defaults = UserDefaults(suiteName: "TrailShotTests.DuplicateGlobalShortcutTests")!
         defaults.removePersistentDomain(forName: "TrailShotTests.DuplicateGlobalShortcutTests")
-        let store = CaptureStore(userDefaults: defaults)
+        let store = CaptureStore(userDefaults: defaults, captureLibraryDirectory: Self.temporaryCaptureDirectory())
         let existing = store.shortcut(for: .captureArea)
 
         store.updateGlobalShortcut(
@@ -60,5 +60,10 @@ final class GlobalShortcutTests: XCTestCase {
 
         XCTAssertNotEqual(store.shortcut(for: .captureWindow), existing)
         XCTAssertEqual(store.shortcutEditingMessage, "\(existing.displayValue) is already assigned.")
+    }
+
+    private static func temporaryCaptureDirectory() -> URL {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent("TrailShotShortcutTests-\(UUID().uuidString)", isDirectory: true)
     }
 }

@@ -34,6 +34,7 @@ final class CaptureStore {
     private let pinWindowService = PinWindowService()
     private let sensitiveTextDetectionService = SensitiveTextDetectionService()
     private let recordingTrimService = RecordingTrimService()
+    private let captureLibraryService: CaptureLibraryService
     private let permissionService = ScreenRecordingPermissionService()
     private let globalHotKeyService = GlobalHotKeyService()
     private let userDefaults: UserDefaults
@@ -41,16 +42,20 @@ final class CaptureStore {
 
     init(
         userDefaults: UserDefaults = .standard,
-        recordingsDirectory: URL = ScreenRecordingService.defaultRecordingsDirectory
+        recordingsDirectory: URL = ScreenRecordingService.defaultRecordingsDirectory,
+        captureLibraryDirectory: URL = CaptureLibraryService.defaultLibraryDirectory
     ) {
         self.userDefaults = userDefaults
         self.recordingsDirectory = recordingsDirectory
         recordingService = ScreenRecordingService(outputDirectory: recordingsDirectory)
+        captureLibraryService = CaptureLibraryService(directory: captureLibraryDirectory)
         hasScreenRecordingPermission = permissionService.hasPermission()
         areGlobalShortcutsEnabled = userDefaults.object(forKey: PreferencesKeys.globalShortcutsEnabled) as? Bool ?? true
         globalShortcuts = Self.loadGlobalShortcuts(from: userDefaults)
         recordings = Self.loadRecordings(from: recordingsDirectory)
         lastRecordingURL = recordings.first?.url
+        captures = captureLibraryService.loadCaptures()
+        selectedCaptureID = captures.first?.id
     }
 
     var selectedCapture: CaptureItem? {
@@ -511,6 +516,7 @@ final class CaptureStore {
         }
 
         captures[index].name = trimmedName
+        persistCaptureLibrary()
     }
 
     func deleteSelectedCapture() {
@@ -527,6 +533,7 @@ final class CaptureStore {
         if selectedCaptureID == id || selectedCaptureID == nil {
             selectedCaptureID = captures.indices.contains(index) ? captures[index].id : captures.first?.id
         }
+        persistCaptureLibrary()
     }
 
     func clearCaptureHistory() {
@@ -535,12 +542,14 @@ final class CaptureStore {
         selectedAnnotationID = nil
         closeAllPinnedCaptures()
         status = .ready
+        persistCaptureLibrary()
     }
 
     func clearAnnotations() {
         guard let index = selectedCaptureIndex else { return }
         captures[index].annotations.removeAll()
         selectedAnnotationID = nil
+        persistCaptureLibrary()
     }
 
     func autoRedactSensitiveText() async {
@@ -562,6 +571,7 @@ final class CaptureStore {
             captures[index].annotations.append(contentsOf: annotations)
             selectedAnnotationID = annotations.last?.id
             activeTool = .move
+            persistCaptureLibrary()
             status = .working("Added \(annotations.count) redaction\(annotations.count == 1 ? "" : "s")")
             Task { [weak self] in
                 try? await Task.sleep(for: .seconds(1.6))
@@ -583,6 +593,7 @@ final class CaptureStore {
 
         captures[index].annotations.remove(at: annotationIndex)
         self.selectedAnnotationID = nil
+        persistCaptureLibrary()
     }
 
     func undoLastAnnotation() {
@@ -591,6 +602,7 @@ final class CaptureStore {
         if selectedAnnotationID == removed.id {
             selectedAnnotationID = nil
         }
+        persistCaptureLibrary()
     }
 
     func pinSelectedCapture() {
@@ -643,6 +655,7 @@ final class CaptureStore {
         )
         captures[index].annotations.append(annotation)
         selectedAnnotationID = annotation.id
+        persistCaptureLibrary()
     }
 
     func selectAnnotation(id: CaptureAnnotation.ID?) {
@@ -664,6 +677,7 @@ final class CaptureStore {
         annotation.start = annotation.start.offsetBy(delta).clampedToUnitSquare
         annotation.end = annotation.end.offsetBy(delta).clampedToUnitSquare
         captures[captureIndex].annotations[annotationIndex] = annotation
+        persistCaptureLibrary()
     }
 
     func resizeAnnotation(id: CaptureAnnotation.ID, handle: AnnotationResizeHandle, to point: CGPoint) {
@@ -712,6 +726,7 @@ final class CaptureStore {
         }
 
         captures[captureIndex].annotations[annotationIndex] = annotation
+        persistCaptureLibrary()
     }
 
     func updateSelectedAnnotationText(_ text: String) {
@@ -725,6 +740,7 @@ final class CaptureStore {
         }
 
         captures[captureIndex].annotations[annotationIndex].text = text
+        persistCaptureLibrary()
     }
 
     private func insertCapture(image: NSImage, kind: CaptureKind) {
@@ -740,6 +756,7 @@ final class CaptureStore {
         captures.insert(item, at: 0)
         selectedCaptureID = item.id
         selectedAnnotationID = nil
+        persistCaptureLibrary()
         exportService.copyToClipboard(image)
         quickAccessService.show(
             captureName: item.name,
@@ -761,6 +778,14 @@ final class CaptureStore {
         recordings.removeAll { $0.id == recording.id }
         recordings.insert(recording, at: 0)
         lastRecordingURL = url
+    }
+
+    private func persistCaptureLibrary() {
+        do {
+            try captureLibraryService.saveCaptures(captures)
+        } catch {
+            status = .failed("Could not save capture history.")
+        }
     }
 
     private static func loadRecordings(from directory: URL) -> [RecordingItem] {
