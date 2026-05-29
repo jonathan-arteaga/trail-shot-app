@@ -62,6 +62,12 @@ struct TrailShotApp: App {
                 .keyboardShortcut("f", modifiers: [.command, .shift])
                 .disabled(store.selectedCapture == nil)
 
+                Button("Copy Detected Text") {
+                    Task { await store.copyDetectedTextFromSelectedCapture() }
+                }
+                .keyboardShortcut("t", modifiers: [.command, .shift])
+                .disabled(store.selectedCapture == nil)
+
                 Button("Save Annotated Image...") {
                     Task { await store.saveSelectedCapture() }
                 }
@@ -181,6 +187,11 @@ struct TrailShotApp: App {
 
             Button("Copy Latest Framed") {
                 store.copySelectedCaptureFramed()
+            }
+            .disabled(store.selectedCapture == nil)
+
+            Button("Copy Detected Text") {
+                Task { await store.copyDetectedTextFromSelectedCapture() }
             }
             .disabled(store.selectedCapture == nil)
 

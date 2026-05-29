@@ -51,6 +51,26 @@ final class SensitiveTextDetectionTests: XCTestCase {
     }
 
     @MainActor
+    func testTextRecognitionProducesPlainTextInReadingOrder() async throws {
+        let image = makeFixtureImage(lines: [
+            "TrailShot OCR Fixture",
+            "Copy this text",
+            "Case 5005f0000012345AAA"
+        ])
+
+        let observations = try await TextRecognitionService().recognize(in: image)
+        let plainText = TextRecognitionService.plainText(from: observations)
+
+        XCTAssertTrue(plainText.localizedCaseInsensitiveContains("TrailShot OCR Fixture"))
+        XCTAssertTrue(plainText.localizedCaseInsensitiveContains("Copy this text"))
+        XCTAssertTrue(plainText.localizedCaseInsensitiveContains("Case"))
+        XCTAssertLessThan(
+            plainText.range(of: "TrailShot", options: .caseInsensitive)?.lowerBound ?? plainText.endIndex,
+            plainText.range(of: "Copy", options: .caseInsensitive)?.lowerBound ?? plainText.startIndex
+        )
+    }
+
+    @MainActor
     private func makeFixtureImage(lines: [String]) -> NSImage {
         let size = NSSize(width: 980, height: 420)
         let image = NSImage(size: size)

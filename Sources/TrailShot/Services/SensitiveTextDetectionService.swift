@@ -36,40 +36,18 @@ struct SensitiveTextMatch: Identifiable, Hashable {
 }
 
 struct SensitiveTextDetectionService {
+    private let textRecognitionService = TextRecognitionService()
+
     func detect(in image: NSImage) async throws -> [SensitiveTextMatch] {
-        guard let cgImage = image.cgImageForVision else {
-            return []
-        }
-
-        return try await Task.detached(priority: .userInitiated) {
-            let request = VNRecognizeTextRequest()
-            request.recognitionLevel = .accurate
-            request.usesLanguageCorrection = false
-            request.minimumTextHeight = 0.012
-
-            let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
-            try handler.perform([request])
-
-            guard let observations = request.results else {
-                return []
-            }
-
-            return observations.compactMap { observation in
-                guard
-                    let candidate = observation.topCandidates(1).first,
-                    candidate.confidence >= 0.45,
-                    SensitivePatternMatcher.isSensitive(candidate.string)
-                else {
-                    return nil
-                }
-
-                return SensitiveTextMatch(
-                    text: candidate.string,
-                    confidence: candidate.confidence,
-                    boundingBox: observation.boundingBox.expandedBy(dx: 0.006, dy: 0.006)
+        try await textRecognitionService.recognize(in: image)
+            .filter { SensitivePatternMatcher.isSensitive($0.text) }
+            .map { recognizedText in
+                SensitiveTextMatch(
+                    text: recognizedText.text,
+                    confidence: recognizedText.confidence,
+                    boundingBox: recognizedText.boundingBox.expandedBy(dx: 0.006, dy: 0.006)
                 )
             }
-        }.value
     }
 }
 

@@ -336,6 +336,13 @@ private struct ToolInspectorView: View {
                 } label: {
                     Label("Detect sensitive text", systemImage: "text.viewfinder")
                 }
+                .disabled(store.selectedCapture == nil)
+                Button {
+                    Task { await store.copyDetectedTextFromSelectedCapture() }
+                } label: {
+                    Label("Copy detected text", systemImage: "text.page")
+                }
+                .disabled(store.selectedCapture == nil)
                 Text("Runs locally with Vision OCR.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)

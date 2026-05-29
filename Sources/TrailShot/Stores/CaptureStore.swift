@@ -36,6 +36,7 @@ final class CaptureStore {
     private let quickAccessService = QuickAccessService()
     private let pinWindowService = PinWindowService()
     private let sensitiveTextDetectionService = SensitiveTextDetectionService()
+    private let textRecognitionService = TextRecognitionService()
     private let recordingTrimService = RecordingTrimService()
     private let captureLibraryService: CaptureLibraryService
     private let permissionService = ScreenRecordingPermissionService()
@@ -498,6 +499,29 @@ final class CaptureStore {
     func copySelectedCaptureFramed() {
         guard let capture = selectedCapture else { return }
         exportService.copyToClipboard(exportService.framedImage(for: capture))
+    }
+
+    func copyDetectedTextFromSelectedCapture() async {
+        guard let capture = selectedCapture else { return }
+        status = .working("Reading text locally")
+
+        do {
+            let observations = try await textRecognitionService.recognize(in: capture.image)
+            let text = TextRecognitionService.plainText(from: observations)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+
+            guard !text.isEmpty else {
+                showTransientStatus("No text found")
+                return
+            }
+
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(text, forType: .string)
+            showTransientStatus("Copied detected text")
+        } catch {
+            status = .failed(error.localizedDescription)
+        }
     }
 
     func saveSelectedCapture() async {
