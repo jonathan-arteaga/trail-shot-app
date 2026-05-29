@@ -69,6 +69,13 @@ swift test
 
 By default this runs tests, creates a hardened-runtime, ad-hoc signed
 development build, packages `dist/TrailShot.dmg`, and validates the artifact.
+The bundle is stamped with version/build metadata:
+
+- `TRAILSHOT_VERSION`, default `0.1.0`
+- `TRAILSHOT_BUILD_NUMBER`, default commit count
+- `TRAILSHOT_RELEASE_CHANNEL`, default `development`
+- `TRAILSHOT_GIT_COMMIT`, default current short commit
+
 To also launch-verify the app while packaging locally:
 
 ```bash
@@ -78,7 +85,7 @@ TRAILSHOT_PACKAGE_VERIFY_LAUNCH=1 ./script/package_dmg.sh
 For a distributable Developer ID build:
 
 ```bash
-TRAILSHOT_CODE_SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" ./script/package_dmg.sh
+TRAILSHOT_VERSION="0.1.0" TRAILSHOT_RELEASE_CHANNEL="internal" TRAILSHOT_CODE_SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" ./script/package_dmg.sh
 ```
 
 Validate the current app and DMG artifacts:

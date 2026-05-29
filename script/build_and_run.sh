@@ -6,6 +6,10 @@ APP_NAME="TrailShot"
 BUNDLE_ID="com.salesforce.trailshot"
 MIN_SYSTEM_VERSION="14.0"
 CODE_SIGN_IDENTITY="${TRAILSHOT_CODE_SIGN_IDENTITY:--}"
+APP_VERSION="${TRAILSHOT_VERSION:-0.1.0}"
+BUILD_NUMBER="${TRAILSHOT_BUILD_NUMBER:-}"
+GIT_COMMIT="${TRAILSHOT_GIT_COMMIT:-}"
+RELEASE_CHANNEL="${TRAILSHOT_RELEASE_CHANNEL:-development}"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
@@ -20,6 +24,13 @@ APP_ICON="$APP_RESOURCES/TrailShot.icns"
 pkill -x "$APP_NAME" >/dev/null 2>&1 || true
 
 cd "$ROOT_DIR"
+if [[ -z "$BUILD_NUMBER" ]]; then
+  BUILD_NUMBER="$(git rev-list --count HEAD 2>/dev/null || echo 1)"
+fi
+if [[ -z "$GIT_COMMIT" ]]; then
+  GIT_COMMIT="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+fi
+
 swift build
 BUILD_BINARY="$(swift build --show-bin-path)/$APP_NAME"
 
@@ -43,10 +54,18 @@ cat >"$INFO_PLIST" <<PLIST
   <string>$APP_NAME</string>
   <key>CFBundleDisplayName</key>
   <string>$APP_NAME</string>
+  <key>CFBundleShortVersionString</key>
+  <string>$APP_VERSION</string>
+  <key>CFBundleVersion</key>
+  <string>$BUILD_NUMBER</string>
+  <key>CFBundleGetInfoString</key>
+  <string>$APP_NAME $APP_VERSION ($BUILD_NUMBER)</string>
   <key>CFBundleIconFile</key>
   <string>TrailShot</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
+  <key>LSApplicationCategoryType</key>
+  <string>public.app-category.productivity</string>
   <key>LSMinimumSystemVersion</key>
   <string>$MIN_SYSTEM_VERSION</string>
   <key>NSHumanReadableCopyright</key>
@@ -55,6 +74,10 @@ cat >"$INFO_PLIST" <<PLIST
   <string>NSApplication</string>
   <key>NSHighResolutionCapable</key>
   <true/>
+  <key>TrailShotBuildCommit</key>
+  <string>$GIT_COMMIT</string>
+  <key>TrailShotReleaseChannel</key>
+  <string>$RELEASE_CHANNEL</string>
 </dict>
 </plist>
 PLIST

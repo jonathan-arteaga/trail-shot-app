@@ -27,6 +27,41 @@ if [[ "$actual_bundle_id" != "$required_bundle_id" ]]; then
   exit 1
 fi
 
+required_min_system_version="14.0"
+actual_min_system_version="$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$INFO_PLIST")"
+if [[ "$actual_min_system_version" != "$required_min_system_version" ]]; then
+  echo "Unexpected minimum system version: $actual_min_system_version" >&2
+  exit 1
+fi
+
+required_category="public.app-category.productivity"
+actual_category="$(/usr/libexec/PlistBuddy -c 'Print :LSApplicationCategoryType' "$INFO_PLIST")"
+if [[ "$actual_category" != "$required_category" ]]; then
+  echo "Unexpected app category: $actual_category" >&2
+  exit 1
+fi
+
+version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$INFO_PLIST")"
+build_number="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$INFO_PLIST")"
+build_commit="$(/usr/libexec/PlistBuddy -c 'Print :TrailShotBuildCommit' "$INFO_PLIST")"
+release_channel="$(/usr/libexec/PlistBuddy -c 'Print :TrailShotReleaseChannel' "$INFO_PLIST")"
+if [[ ! "$version" =~ ^[0-9]+(\.[0-9]+){1,2}$ ]]; then
+  echo "Unexpected app version: $version" >&2
+  exit 1
+fi
+if [[ ! "$build_number" =~ ^[0-9]+$ ]]; then
+  echo "Unexpected build number: $build_number" >&2
+  exit 1
+fi
+if [[ -z "$build_commit" ]]; then
+  echo "Missing TrailShotBuildCommit" >&2
+  exit 1
+fi
+if [[ -z "$release_channel" ]]; then
+  echo "Missing TrailShotReleaseChannel" >&2
+  exit 1
+fi
+
 codesign --verify --deep --strict --verbose=2 "$APP_BUNDLE"
 hdiutil verify "$DMG_PATH" >/dev/null
 
