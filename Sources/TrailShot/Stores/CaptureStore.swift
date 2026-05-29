@@ -24,6 +24,7 @@ final class CaptureStore {
     var isAutoCopyAfterCaptureEnabled: Bool
     var isQuickAccessAfterCaptureEnabled: Bool
     var isAutoRedactAfterCaptureEnabled: Bool
+    var captureRetentionPolicy: CaptureRetentionPolicy
     var globalShortcuts: [GlobalShortcut]
     var globalShortcutRegistrations: [GlobalShortcutRegistration] = []
     var shortcutEditingMessage: String?
@@ -58,10 +59,12 @@ final class CaptureStore {
         isAutoCopyAfterCaptureEnabled = userDefaults.object(forKey: PreferencesKeys.autoCopyAfterCaptureEnabled) as? Bool ?? true
         isQuickAccessAfterCaptureEnabled = userDefaults.object(forKey: PreferencesKeys.quickAccessAfterCaptureEnabled) as? Bool ?? true
         isAutoRedactAfterCaptureEnabled = userDefaults.object(forKey: PreferencesKeys.autoRedactAfterCaptureEnabled) as? Bool ?? false
+        captureRetentionPolicy = Self.loadCaptureRetentionPolicy(from: userDefaults)
         globalShortcuts = Self.loadGlobalShortcuts(from: userDefaults)
         recordings = Self.loadRecordings(from: recordingsDirectory)
         lastRecordingURL = recordings.first?.url
         captures = captureLibraryService.loadCaptures()
+        applyCaptureRetentionPolicy(now: Date(), shouldPersistWhenChanged: true)
         selectedCaptureID = captures.first?.id
     }
 
@@ -129,6 +132,12 @@ final class CaptureStore {
     func setQuickAccessAfterCaptureEnabled(_ enabled: Bool) {
         isQuickAccessAfterCaptureEnabled = enabled
         userDefaults.set(enabled, forKey: PreferencesKeys.quickAccessAfterCaptureEnabled)
+    }
+
+    func setCaptureRetentionPolicy(_ policy: CaptureRetentionPolicy) {
+        captureRetentionPolicy = policy
+        userDefaults.set(policy.rawValue, forKey: PreferencesKeys.captureRetentionPolicy)
+        applyCaptureRetentionPolicy(now: Date(), shouldPersistWhenChanged: true)
     }
 
     private func configureGlobalShortcuts() {
@@ -208,6 +217,17 @@ final class CaptureStore {
         return GlobalShortcutAction.allCases.map { action in
             decoded.first { $0.action == action && $0.isUsableGlobalShortcut } ?? action.defaultShortcut
         }
+    }
+
+    private static func loadCaptureRetentionPolicy(from userDefaults: UserDefaults) -> CaptureRetentionPolicy {
+        guard
+            let rawValue = userDefaults.string(forKey: PreferencesKeys.captureRetentionPolicy),
+            let policy = CaptureRetentionPolicy(rawValue: rawValue)
+        else {
+            return .forever
+        }
+
+        return policy
     }
 
     private func performGlobalShortcut(_ action: GlobalShortcutAction) async {
@@ -596,6 +616,25 @@ final class CaptureStore {
         persistCaptureLibrary()
     }
 
+    func applyCaptureRetentionPolicy(now: Date, shouldPersistWhenChanged: Bool = true) {
+        let removedCaptureIDs = captures
+            .filter { !captureRetentionPolicy.keeps(capture: $0, now: now) }
+            .map(\.id)
+
+        guard !removedCaptureIDs.isEmpty else { return }
+
+        removedCaptureIDs.forEach(closePinnedCaptures)
+        captures.removeAll { removedCaptureIDs.contains($0.id) }
+        if let selectedCaptureID, removedCaptureIDs.contains(selectedCaptureID) {
+            self.selectedCaptureID = captures.first?.id
+            selectedAnnotationID = nil
+        }
+
+        if shouldPersistWhenChanged {
+            persistCaptureLibrary()
+        }
+    }
+
     func clearAnnotations() {
         guard let index = selectedCaptureIndex else { return }
         captures[index].annotations.removeAll()
@@ -948,6 +987,7 @@ private enum PreferencesKeys {
     static let autoCopyAfterCaptureEnabled = "autoCopyAfterCaptureEnabled"
     static let quickAccessAfterCaptureEnabled = "quickAccessAfterCaptureEnabled"
     static let autoRedactAfterCaptureEnabled = "autoRedactAfterCaptureEnabled"
+    static let captureRetentionPolicy = "captureRetentionPolicy"
     static let globalShortcuts = "globalShortcuts"
 }
 

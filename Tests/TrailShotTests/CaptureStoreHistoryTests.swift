@@ -47,6 +47,30 @@ final class CaptureStoreHistoryTests: XCTestCase {
     }
 
     @MainActor
+    func testRetentionPolicyPrunesExpiredCaptures() {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("TrailShotRetentionTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let now = Date(timeIntervalSince1970: 2_000_000)
+        let oldCapture = makeCapture(name: "Old", createdAt: now.addingTimeInterval(-8 * 24 * 60 * 60))
+        let freshCapture = makeCapture(name: "Fresh", createdAt: now.addingTimeInterval(-2 * 24 * 60 * 60))
+        let store = CaptureStore(captureLibraryDirectory: directory)
+        store.captures = [oldCapture, freshCapture]
+        store.selectedCaptureID = oldCapture.id
+        store.pinnedCaptures = [
+            PinnedCapture(captureID: oldCapture.id, title: oldCapture.name, createdAt: now, pixelSize: oldCapture.pixelSize)
+        ]
+        store.captureRetentionPolicy = .sevenDays
+
+        store.applyCaptureRetentionPolicy(now: now)
+
+        XCTAssertEqual(store.captures.map(\.id), [freshCapture.id])
+        XCTAssertEqual(store.selectedCaptureID, freshCapture.id)
+        XCTAssertTrue(store.pinnedCaptures.isEmpty)
+    }
+
+    @MainActor
     func testRecordingHistoryLoadsFromDirectory() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("TrailShotTests-\(UUID().uuidString)", isDirectory: true)
@@ -77,7 +101,7 @@ final class CaptureStoreHistoryTests: XCTestCase {
     }
 
     @MainActor
-    private func makeCapture(name: String) -> CaptureItem {
+    private func makeCapture(name: String, createdAt: Date = Date()) -> CaptureItem {
         let image = NSImage(size: NSSize(width: 120, height: 80))
         image.lockFocus()
         NSColor.white.setFill()
@@ -86,7 +110,7 @@ final class CaptureStoreHistoryTests: XCTestCase {
 
         return CaptureItem(
             kind: .area,
-            createdAt: Date(),
+            createdAt: createdAt,
             image: image,
             pixelSize: image.size,
             name: name

@@ -35,6 +35,21 @@ final class PrivacyPreferenceTests: XCTestCase {
         XCTAssertFalse(restoredStore.isQuickAccessAfterCaptureEnabled)
     }
 
+    @MainActor
+    func testRetentionPreferenceDefaultsForeverAndPersists() {
+        let suiteName = "TrailShotTests.RetentionPreferenceTests"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+
+        let store = CaptureStore(userDefaults: defaults, captureLibraryDirectory: Self.temporaryCaptureDirectory())
+        XCTAssertEqual(store.captureRetentionPolicy, .forever)
+
+        store.setCaptureRetentionPolicy(.thirtyDays)
+
+        let restoredStore = CaptureStore(userDefaults: defaults, captureLibraryDirectory: Self.temporaryCaptureDirectory())
+        XCTAssertEqual(restoredStore.captureRetentionPolicy, .thirtyDays)
+    }
+
     private static func temporaryCaptureDirectory() -> URL {
         FileManager.default.temporaryDirectory
             .appendingPathComponent("TrailShotPrivacyPreferenceTests-\(UUID().uuidString)", isDirectory: true)

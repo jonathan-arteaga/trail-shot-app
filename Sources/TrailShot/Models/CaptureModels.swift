@@ -13,6 +13,51 @@ enum CaptureKind: String, CaseIterable, Identifiable, Codable {
     var id: String { rawValue }
 }
 
+enum CaptureRetentionPolicy: String, CaseIterable, Identifiable, Codable {
+    case forever
+    case sevenDays
+    case thirtyDays
+    case ninetyDays
+    case oneYear
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .forever:
+            "Forever"
+        case .sevenDays:
+            "7 days"
+        case .thirtyDays:
+            "30 days"
+        case .ninetyDays:
+            "90 days"
+        case .oneYear:
+            "1 year"
+        }
+    }
+
+    var maximumAge: TimeInterval? {
+        switch self {
+        case .forever:
+            nil
+        case .sevenDays:
+            7 * 24 * 60 * 60
+        case .thirtyDays:
+            30 * 24 * 60 * 60
+        case .ninetyDays:
+            90 * 24 * 60 * 60
+        case .oneYear:
+            365 * 24 * 60 * 60
+        }
+    }
+
+    func keeps(capture: CaptureItem, now: Date) -> Bool {
+        guard let maximumAge else { return true }
+        return now.timeIntervalSince(capture.createdAt) <= maximumAge
+    }
+}
+
 struct CaptureItem: Identifiable, Hashable {
     let id: UUID
     let kind: CaptureKind

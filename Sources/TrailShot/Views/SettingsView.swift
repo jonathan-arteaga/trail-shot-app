@@ -143,6 +143,18 @@ struct SettingsView: View {
                 Label("Sensitive-text detection runs locally with Vision OCR.", systemImage: "text.viewfinder")
                 Label("Recordings save to Movies/TrailShot.", systemImage: "film")
             }
+
+            Section("Retention") {
+                Picker("Keep capture history", selection: captureRetentionPolicy) {
+                    ForEach(CaptureRetentionPolicy.allCases) { policy in
+                        Text(policy.title).tag(policy)
+                    }
+                }
+                Text("Expired screenshots and their saved image files are removed from TrailShot’s local history.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .formStyle(.grouped)
         .padding()
@@ -173,6 +185,13 @@ struct SettingsView: View {
         Binding(
             get: { store.isAutoRedactAfterCaptureEnabled },
             set: { store.setAutoRedactAfterCaptureEnabled($0) }
+        )
+    }
+
+    private var captureRetentionPolicy: Binding<CaptureRetentionPolicy> {
+        Binding(
+            get: { store.captureRetentionPolicy },
+            set: { store.setCaptureRetentionPolicy($0) }
         )
     }
 }
