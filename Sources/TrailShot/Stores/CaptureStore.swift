@@ -33,6 +33,7 @@ final class CaptureStore {
     private let quickAccessService = QuickAccessService()
     private let pinWindowService = PinWindowService()
     private let sensitiveTextDetectionService = SensitiveTextDetectionService()
+    private let recordingTrimService = RecordingTrimService()
     private let permissionService = ScreenRecordingPermissionService()
     private let globalHotKeyService = GlobalHotKeyService()
     private let userDefaults: UserDefaults
@@ -405,6 +406,26 @@ final class CaptureStore {
             status = .working("Recording moved to Trash")
             Task { [weak self] in
                 try? await Task.sleep(for: .seconds(1.4))
+                self?.status = .ready
+            }
+        } catch {
+            status = .failed(error.localizedDescription)
+        }
+    }
+
+    func recordingDuration(of recording: RecordingItem) -> TimeInterval {
+        recordingTrimService.duration(of: recording.url)
+    }
+
+    func trimRecording(_ recording: RecordingItem, start: TimeInterval, end: TimeInterval) async {
+        status = .working("Trimming recording")
+
+        do {
+            let url = try await recordingTrimService.trim(url: recording.url, start: start, end: end)
+            rememberRecording(url)
+            status = .working("Trimmed recording saved")
+            Task { [weak self] in
+                try? await Task.sleep(for: .seconds(1.6))
                 self?.status = .ready
             }
         } catch {

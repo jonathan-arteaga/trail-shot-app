@@ -157,6 +157,7 @@ private struct WelcomeCaptureView: View {
 @MainActor
 private struct ToolInspectorView: View {
     @Bindable var store: CaptureStore
+    @State private var recordingToTrim: RecordingItem?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -248,6 +249,11 @@ private struct ToolInspectorView: View {
                         } label: {
                             Label("Reveal", systemImage: "folder")
                         }
+                    }
+                    Button {
+                        recordingToTrim = latestRecording
+                    } label: {
+                        Label("Trim", systemImage: "timeline.selection")
                     }
                     if store.recordings.count > 1 {
                         Text("\(store.recordings.count) recordings saved locally.")
@@ -406,6 +412,9 @@ private struct ToolInspectorView: View {
         }
         .padding(16)
         .background(.regularMaterial)
+        .sheet(item: $recordingToTrim) { recording in
+            RecordingTrimSheet(store: store, recording: recording)
+        }
     }
 
     private var selectedAnnotationText: Binding<String> {
@@ -420,6 +429,97 @@ private struct ToolInspectorView: View {
             get: { store.selectedCapture?.name ?? "" },
             set: { store.renameSelectedCapture($0) }
         )
+    }
+}
+
+@MainActor
+private struct RecordingTrimSheet: View {
+    @Bindable var store: CaptureStore
+    let recording: RecordingItem
+    @Environment(\.dismiss) private var dismiss
+    @State private var start: TimeInterval = 0
+    @State private var end: TimeInterval = 1
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(spacing: 10) {
+                Image(systemName: "timeline.selection")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(Color.accentColor)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Trim Recording")
+                        .font(.headline)
+                    Text(recording.name)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                Spacer()
+            }
+
+            if duration > 0 {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Text("Start")
+                        Spacer()
+                        Text(Self.timeText(start))
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                    }
+                    Slider(value: $start, in: 0...max(end - 0.25, 0.25))
+
+                    HStack {
+                        Text("End")
+                        Spacer()
+                        Text(Self.timeText(end))
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                    }
+                    Slider(value: $end, in: min(start + 0.25, duration)...duration)
+
+                    Text("New clip: \(Self.timeText(max(end - start, 0)))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                ContentUnavailableView("Duration unavailable", systemImage: "film.stack")
+                    .frame(height: 120)
+            }
+
+            HStack {
+                Spacer()
+                Button("Cancel") {
+                    dismiss()
+                }
+                .keyboardShortcut(.cancelAction)
+
+                Button("Save Trimmed Copy") {
+                    Task {
+                        await store.trimRecording(recording, start: start, end: end)
+                        dismiss()
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(duration <= 0 || end - start < 0.25)
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(20)
+        .frame(width: 420)
+        .onAppear {
+            end = max(duration, 1)
+        }
+    }
+
+    private var duration: TimeInterval {
+        store.recordingDuration(of: recording)
+    }
+
+    private static func timeText(_ seconds: TimeInterval) -> String {
+        let totalSeconds = max(Int(seconds.rounded()), 0)
+        let minutes = totalSeconds / 60
+        let seconds = totalSeconds % 60
+        return String(format: "%d:%02d", minutes, seconds)
     }
 }
 

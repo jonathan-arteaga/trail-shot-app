@@ -27,6 +27,7 @@ copy or save instantly, and keep the full workflow local.
 - Drag-out PNG sharing for annotated and framed captures
 - Local main-display and selected-area screen recording to Movies/TrailShot
 - Recording history for saved `.mov` files with open, reveal, refresh, and trash controls
+- Recording trim export for local clipped `.mov` copies
 - Floating quick-access bubble after capture
 - Pin selected captures to the screen
 - Pinned capture organizer with focus, close, and close-all controls
@@ -122,5 +123,4 @@ of gravity is a single clean workflow:
 
 - Cross-display selection polish and validation
 - Window targeting polish on multi-display setups
-- Recording trim
 - Developer ID signing, hardened runtime, notarization, and stapled DMG release
