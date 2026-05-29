@@ -39,10 +39,20 @@ struct RecordingTrimService {
         }
 
         let outputURL = try makeTrimmedOutputURL(for: url)
+        exportSession.outputURL = outputURL
+        exportSession.outputFileType = .mov
         exportSession.timeRange = timeRange
         exportSession.shouldOptimizeForNetworkUse = true
 
-        try await exportSession.export(to: outputURL, as: .mov)
+        await exportSession.export()
+        switch exportSession.status {
+        case .completed:
+            break
+        case .failed, .cancelled:
+            throw exportSession.error ?? RecordingTrimError.exportFailed
+        default:
+            throw RecordingTrimError.exportFailed
+        }
 
         return outputURL
     }
