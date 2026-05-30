@@ -38,8 +38,60 @@ jobs:
       - name: Test
         run: swift test
 
+      - name: Check release signing secrets
+        env:
+          CERTIFICATE_P12_BASE64: ${{ secrets.TRAILSHOT_DEVELOPER_ID_CERTIFICATE_P12_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.TRAILSHOT_DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+          CODE_SIGN_IDENTITY: ${{ secrets.TRAILSHOT_CODE_SIGN_IDENTITY }}
+          NOTARY_APPLE_ID: ${{ secrets.TRAILSHOT_NOTARY_APPLE_ID }}
+          NOTARY_PASSWORD: ${{ secrets.TRAILSHOT_NOTARY_PASSWORD }}
+          NOTARY_TEAM_ID: ${{ secrets.TRAILSHOT_NOTARY_TEAM_ID }}
+        run: |
+          missing=0
+          for name in CERTIFICATE_P12_BASE64 CERTIFICATE_PASSWORD CODE_SIGN_IDENTITY NOTARY_APPLE_ID NOTARY_PASSWORD NOTARY_TEAM_ID; do
+            if [[ -z "${!name}" ]]; then
+              echo "Missing required release secret: $name" >&2
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Import Developer ID certificate
+        env:
+          CERTIFICATE_P12_BASE64: ${{ secrets.TRAILSHOT_DEVELOPER_ID_CERTIFICATE_P12_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.TRAILSHOT_DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          KEYCHAIN_PATH="$RUNNER_TEMP/trailshot-signing.keychain-db"
+          CERTIFICATE_PATH="$RUNNER_TEMP/trailshot-developer-id.p12"
+          echo "$CERTIFICATE_P12_BASE64" | base64 --decode > "$CERTIFICATE_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" -k "$KEYCHAIN_PATH" -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+
       - name: Package DMG
-        run: ./script/package_dmg.sh
+        env:
+          TRAILSHOT_CODE_SIGN_IDENTITY: ${{ secrets.TRAILSHOT_CODE_SIGN_IDENTITY }}
+          TRAILSHOT_RELEASE_CHANNEL: internal
+          TRAILSHOT_VERSION: ${{ steps.release_tag.outputs.tag }}
+        run: |
+          TRAILSHOT_VERSION="${TRAILSHOT_VERSION#v}" ./script/package_dmg.sh
+
+      - name: Notarize and staple DMG
+        env:
+          TRAILSHOT_NOTARY_APPLE_ID: ${{ secrets.TRAILSHOT_NOTARY_APPLE_ID }}
+          TRAILSHOT_NOTARY_PASSWORD: ${{ secrets.TRAILSHOT_NOTARY_PASSWORD }}
+          TRAILSHOT_NOTARY_TEAM_ID: ${{ secrets.TRAILSHOT_NOTARY_TEAM_ID }}
+        run: ./script/notarize_release.sh
+
+      - name: Validate distributable DMG
+        env:
+          TRAILSHOT_REQUIRE_DEVELOPER_ID: "1"
+          TRAILSHOT_REQUIRE_NOTARIZED: "1"
+        run: ./script/validate_release_artifact.sh
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4

@@ -7,6 +7,8 @@ DIST_DIR="$ROOT_DIR/dist"
 APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
 DMG_PATH="$DIST_DIR/$APP_NAME.dmg"
 INFO_PLIST="$APP_BUNDLE/Contents/Info.plist"
+REQUIRE_DEVELOPER_ID="${TRAILSHOT_REQUIRE_DEVELOPER_ID:-0}"
+REQUIRE_NOTARIZED="${TRAILSHOT_REQUIRE_NOTARIZED:-0}"
 
 if [[ ! -d "$APP_BUNDLE" ]]; then
   echo "Missing app bundle: $APP_BUNDLE" >&2
@@ -72,9 +74,20 @@ echo "$signature_details" | grep -q "Runtime Version" || {
 }
 
 if echo "$signature_details" | grep -q "Signature=adhoc"; then
+  if [[ "$REQUIRE_DEVELOPER_ID" == "1" || "$REQUIRE_NOTARIZED" == "1" ]]; then
+    echo "Distributable artifacts must be Developer ID signed, but this app is ad-hoc signed." >&2
+    exit 1
+  fi
+
   echo "Validated ad-hoc signed development artifact."
   echo "Set TRAILSHOT_CODE_SIGN_IDENTITY='Developer ID Application: ...' for distributable signing."
 else
-  spctl --assess --type execute --verbose=4 "$APP_BUNDLE"
   echo "Validated Developer ID signed app artifact."
+fi
+
+if [[ "$REQUIRE_NOTARIZED" == "1" ]]; then
+  codesign --verify --verbose=2 "$DMG_PATH"
+  xcrun stapler validate "$DMG_PATH"
+  spctl --assess --type open --context context:primary-signature --verbose=4 "$DMG_PATH"
+  echo "Validated notarized and stapled DMG artifact."
 fi

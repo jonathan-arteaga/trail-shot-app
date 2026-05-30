@@ -102,10 +102,22 @@ Validate the current app and DMG artifacts:
 ./script/validate_release_artifact.sh
 ```
 
+Require a distributable Developer ID artifact:
+
+```bash
+TRAILSHOT_REQUIRE_DEVELOPER_ID=1 ./script/validate_release_artifact.sh
+```
+
 Notarize a Developer ID signed DMG:
 
 ```bash
 TRAILSHOT_NOTARY_PROFILE="notarytool-profile" ./script/notarize_release.sh
+```
+
+or with direct notary credentials:
+
+```bash
+TRAILSHOT_NOTARY_APPLE_ID="you@example.com" TRAILSHOT_NOTARY_PASSWORD="app-specific-password" TRAILSHOT_NOTARY_TEAM_ID="TEAMID" ./script/notarize_release.sh
 ```
 
 The current DMG is not notarized yet. A broad internal distribution should use
@@ -118,10 +130,17 @@ The repo includes GitHub Actions for CI and downloadable DMGs:
 - Pushes and pull requests run tests, build the app bundle, package a DMG, and
   upload the DMG as a workflow artifact.
 - Tags that start with `v`, such as `v0.1.0`, create or update a GitHub Release
-  with `TrailShot.dmg` attached.
+  with a Developer ID signed, notarized, stapled `TrailShot.dmg` attached.
 - The release workflow can also be run manually with a tag input.
 
-GitHub-built DMGs are ad-hoc signed until Developer ID signing secrets are added.
+Release builds require these repository secrets:
+
+- `TRAILSHOT_DEVELOPER_ID_CERTIFICATE_P12_BASE64`
+- `TRAILSHOT_DEVELOPER_ID_CERTIFICATE_PASSWORD`
+- `TRAILSHOT_CODE_SIGN_IDENTITY`
+- `TRAILSHOT_NOTARY_APPLE_ID`
+- `TRAILSHOT_NOTARY_PASSWORD`
+- `TRAILSHOT_NOTARY_TEAM_ID`
 
 ## Product Direction
 
