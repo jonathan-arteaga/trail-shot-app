@@ -7,6 +7,7 @@ final class QuickAccessService {
 
     func show(
         captureName: String,
+        subtitle: String,
         copy: @escaping () -> Void,
         save: @escaping () -> Void,
         pin: @escaping () -> Void,
@@ -35,6 +36,7 @@ final class QuickAccessService {
         panel.contentView = NSHostingView(
             rootView: QuickAccessBubbleView(
                 captureName: captureName,
+                subtitle: subtitle,
                 copy: { copy() },
                 save: { save() },
                 pin: { pin() },
@@ -55,6 +57,7 @@ final class QuickAccessService {
 
 private struct QuickAccessBubbleView: View {
     let captureName: String
+    let subtitle: String
     let copy: () -> Void
     let save: () -> Void
     let pin: () -> Void
@@ -68,7 +71,7 @@ private struct QuickAccessBubbleView: View {
                 Text(captureName)
                     .font(.caption.weight(.semibold))
                     .lineLimit(1)
-                Text("Copied")
+                Text(subtitle)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }

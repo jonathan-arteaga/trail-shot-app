@@ -34,7 +34,7 @@ copy or save instantly, and keep the full workflow local.
 - Local main-display and selected-area screen recording to Movies/TrailShot
 - Recording history for saved `.mov` files with open, reveal, refresh, and trash controls
 - Recording trim export for local clipped `.mov` copies
-- Floating quick-access bubble after capture
+- Floating quick-access bubble with capture-specific actions
 - Pin selected captures to the screen
 - Pinned capture organizer with focus, close, and close-all controls
 - Capture history sidebar with search, favorites, rename, delete, and clear-history controls

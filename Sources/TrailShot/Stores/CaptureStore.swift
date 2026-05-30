@@ -639,25 +639,13 @@ final class CaptureStore {
     }
 
     func saveSelectedCapture() async {
-        guard
-            let captureID = selectedCapture?.id,
-            await ensureCaptureIsSafeToExport(id: captureID),
-            let capture = capture(id: captureID)
-        else {
-            return
-        }
-        await exportService.saveWithPanel(capture)
+        guard let captureID = selectedCapture?.id else { return }
+        await saveCapture(id: captureID, framed: false)
     }
 
     func saveSelectedCaptureFramed() async {
-        guard
-            let captureID = selectedCapture?.id,
-            await ensureCaptureIsSafeToExport(id: captureID),
-            let capture = capture(id: captureID)
-        else {
-            return
-        }
-        await exportService.saveFramedWithPanel(capture)
+        guard let captureID = selectedCapture?.id else { return }
+        await saveCapture(id: captureID, framed: true)
     }
 
     func dragItemProvider(framed: Bool) -> NSItemProvider {
@@ -854,7 +842,12 @@ final class CaptureStore {
     }
 
     func pinSelectedCapture() {
-        guard let capture = selectedCapture else { return }
+        guard let captureID = selectedCapture?.id else { return }
+        pinCapture(id: captureID)
+    }
+
+    func pinCapture(id: CaptureItem.ID) {
+        guard let capture = capture(id: id) else { return }
         let renderedImage = exportService.renderedImage(for: capture)
         let pinnedCapture = PinnedCapture(
             captureID: capture.id,
@@ -1008,6 +1001,21 @@ final class CaptureStore {
         showTransientStatus(framed ? "Copied framed image" : "Copied image")
     }
 
+    private func saveCapture(id: CaptureItem.ID, framed: Bool) async {
+        guard
+            await ensureCaptureIsSafeToExport(id: id),
+            let capture = capture(id: id)
+        else {
+            return
+        }
+
+        if framed {
+            await exportService.saveFramedWithPanel(capture)
+        } else {
+            await exportService.saveWithPanel(capture)
+        }
+    }
+
     private func ensureCaptureIsSafeToExport(id: CaptureItem.ID) async -> Bool {
         guard isSensitiveExportGuardEnabled else { return true }
         guard !exportClearedCaptureIDs.contains(id) else { return true }
@@ -1076,10 +1084,12 @@ final class CaptureStore {
         if isQuickAccessAfterCaptureEnabled {
             quickAccessService.show(
                 captureName: item.name,
-                copy: { [weak self] in Task { await self?.copySelectedCapture() } },
-                save: { [weak self] in Task { await self?.saveSelectedCapture() } },
-                pin: { [weak self] in self?.pinSelectedCapture() },
-                annotate: {
+                subtitle: "Ready",
+                copy: { [weak self] in Task { await self?.copyCapture(id: item.id, framed: false) } },
+                save: { [weak self] in Task { await self?.saveCapture(id: item.id, framed: false) } },
+                pin: { [weak self] in self?.pinCapture(id: item.id) },
+                annotate: { [weak self] in
+                    self?.selectedCaptureID = item.id
                     NSApp.activate(ignoringOtherApps: true)
                 }
             )
