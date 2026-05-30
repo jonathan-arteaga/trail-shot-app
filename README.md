@@ -17,7 +17,7 @@ copy or save instantly, and keep the full workflow local.
 - Display and area captures exclude TrailShot’s own windows
 - Hover-targeted window capture overlay
 - ScreenCaptureKit-backed window picker fallback and window capture
-- Window picker thumbnails and row hover highlighting
+- Searchable window picker with thumbnails and row hover highlighting
 - Auto-copy latest capture to the clipboard
 - Save selected capture as PNG
 - Inline annotations: arrows, shapes, text labels, redaction blocks, and numbered steps
@@ -136,5 +136,4 @@ of gravity is a single clean workflow:
 
 ## Near-Term Build Targets
 
-- Window targeting polish on multi-display setups
 - Developer ID signing, hardened runtime, notarization, and stapled DMG release

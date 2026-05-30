@@ -3,6 +3,7 @@ import SwiftUI
 @MainActor
 struct WindowPickerView: View {
     @Bindable var store: CaptureStore
+    @State private var searchText = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -22,13 +23,28 @@ struct WindowPickerView: View {
             }
             .padding(18)
 
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                TextField("Search windows", text: $searchText)
+                    .textFieldStyle(.plain)
+            }
+            .padding(.horizontal, 12)
+            .frame(height: 34)
+            .background(.quaternary.opacity(0.55), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .padding(.horizontal, 18)
+            .padding(.bottom, 14)
+
             Divider()
 
             if let message = store.windowPickerMessage {
                 ContentUnavailableView(message, systemImage: "macwindow.badge.exclamationmark")
                     .frame(width: 520, height: 280)
+            } else if filteredCandidates.isEmpty {
+                ContentUnavailableView("No matching windows", systemImage: "magnifyingglass", description: Text("Try an app name, title, or size."))
+                    .frame(width: 560, height: 330)
             } else {
-                List(store.windowCandidates) { candidate in
+                List(filteredCandidates) { candidate in
                     Button {
                         Task { await store.captureWindow(candidate) }
                     } label: {
@@ -60,15 +76,33 @@ struct WindowPickerView: View {
             .padding(14)
         }
         .frame(width: 560)
+        .task(id: thumbnailPreloadKey) {
+            await store.preloadWindowThumbnails(for: Array(filteredCandidates.prefix(14)))
+        }
     }
 
     private var footerText: String {
-        let loaded = store.windowThumbnails.count
-        let total = min(store.windowCandidates.count, 14)
-        guard total > 0 else {
+        guard !store.windowCandidates.isEmpty else {
             return "\(store.windowCandidates.count) windows"
         }
-        return "\(store.windowCandidates.count) windows - \(loaded)/\(total) previews"
+
+        let visibleCount = filteredCandidates.count
+        let loaded = filteredCandidates.prefix(14).filter { store.windowThumbnails[$0.id] != nil }.count
+        let total = min(visibleCount, 14)
+        let resultText = visibleCount == store.windowCandidates.count ? "\(visibleCount) windows" : "\(visibleCount) of \(store.windowCandidates.count) windows"
+        guard total > 0 else { return resultText }
+        return "\(resultText) - \(loaded)/\(total) previews"
+    }
+
+    private var filteredCandidates: [CaptureWindowCandidate] {
+        store.windowCandidates.filter { $0.matchesWindowSearch(searchText) }
+    }
+
+    private var thumbnailPreloadKey: String {
+        filteredCandidates
+            .prefix(14)
+            .map { String($0.id) }
+            .joined(separator: "-")
     }
 }
 

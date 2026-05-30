@@ -214,6 +214,24 @@ struct CaptureWindowCandidate: Identifiable, Hashable {
         hasher.combine(frame.width)
         hasher.combine(frame.height)
     }
+
+    func matchesWindowSearch(_ searchText: String) -> Bool {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !query.isEmpty else { return true }
+
+        return [
+            title,
+            appName,
+            displayTitle,
+            subtitle,
+            "\(Int(frame.width))",
+            "\(Int(frame.height))",
+            "\(Int(frame.width)) x \(Int(frame.height))"
+        ]
+        .joined(separator: " ")
+        .lowercased()
+        .contains(query)
+    }
 }
 
 enum AnnotationTool: String, CaseIterable, Identifiable, Codable {

@@ -379,7 +379,7 @@ final class CaptureStore {
             windowPickerMessage = windowCandidates.isEmpty ? "No capturable windows found." : nil
             isShowingWindowPicker = true
             status = .ready
-            await loadWindowThumbnails(for: Array(windowCandidates.prefix(14)))
+            await preloadWindowThumbnails(for: Array(windowCandidates.prefix(14)))
         } catch {
             windowCandidates = []
             windowThumbnails = [:]
@@ -536,9 +536,10 @@ final class CaptureStore {
         }
     }
 
-    private func loadWindowThumbnails(for candidates: [CaptureWindowCandidate]) async {
+    func preloadWindowThumbnails(for candidates: [CaptureWindowCandidate]) async {
         for candidate in candidates {
             guard windowCandidates.contains(where: { $0.id == candidate.id }) else { continue }
+            guard windowThumbnails[candidate.id] == nil else { continue }
 
             if let thumbnail = try? await captureService.captureWindowThumbnail(id: candidate.id) {
                 windowThumbnails[candidate.id] = thumbnail
