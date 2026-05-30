@@ -50,6 +50,41 @@ final class SensitiveTextDetectionTests: XCTestCase {
         XCTAssertEqual(SensitiveExportGuard.uncoveredMatches(in: [match], annotations: []), [match])
     }
 
+    func testSensitiveTextReviewCacheStoresAndRemovesCaptureMatches() {
+        let firstCaptureID = UUID()
+        let secondCaptureID = UUID()
+        let firstMatch = SensitiveTextMatch(
+            text: "admin@example.com",
+            confidence: 0.98,
+            boundingBox: CGRect(x: 0.2, y: 0.3, width: 0.4, height: 0.1)
+        )
+        let secondMatch = SensitiveTextMatch(
+            text: "5005f0000012345AAA",
+            confidence: 0.96,
+            boundingBox: CGRect(x: 0.1, y: 0.2, width: 0.3, height: 0.1)
+        )
+        var cache = SensitiveTextReviewCache()
+
+        XCTAssertNil(cache.matches(for: firstCaptureID))
+
+        cache.store([firstMatch], for: firstCaptureID)
+        cache.store([secondMatch], for: secondCaptureID)
+
+        XCTAssertEqual(cache.matches(for: firstCaptureID), [firstMatch])
+        XCTAssertEqual(cache.matches(for: secondCaptureID), [secondMatch])
+
+        cache.remove(captureID: firstCaptureID)
+        XCTAssertNil(cache.matches(for: firstCaptureID))
+        XCTAssertEqual(cache.matches(for: secondCaptureID), [secondMatch])
+
+        cache.remove(captureIDs: [secondCaptureID])
+        XCTAssertNil(cache.matches(for: secondCaptureID))
+
+        cache.store([firstMatch], for: firstCaptureID)
+        cache.removeAll()
+        XCTAssertNil(cache.matches(for: firstCaptureID))
+    }
+
     @MainActor
     func testVisionFixtureFindsRedactableText() async throws {
         let image = makeFixtureImage(lines: [

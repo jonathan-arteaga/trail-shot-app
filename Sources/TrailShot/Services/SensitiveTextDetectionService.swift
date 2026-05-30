@@ -51,6 +51,30 @@ struct SensitiveTextDetectionService {
     }
 }
 
+struct SensitiveTextReviewCache {
+    private var matchesByCaptureID: [CaptureItem.ID: [SensitiveTextMatch]] = [:]
+
+    func matches(for captureID: CaptureItem.ID) -> [SensitiveTextMatch]? {
+        matchesByCaptureID[captureID]
+    }
+
+    mutating func store(_ matches: [SensitiveTextMatch], for captureID: CaptureItem.ID) {
+        matchesByCaptureID[captureID] = matches
+    }
+
+    mutating func remove(captureID: CaptureItem.ID) {
+        matchesByCaptureID.removeValue(forKey: captureID)
+    }
+
+    mutating func remove(captureIDs: [CaptureItem.ID]) {
+        captureIDs.forEach { remove(captureID: $0) }
+    }
+
+    mutating func removeAll() {
+        matchesByCaptureID.removeAll()
+    }
+}
+
 enum SensitiveExportGuard {
     static func uncoveredMatches(in matches: [SensitiveTextMatch], annotations: [CaptureAnnotation]) -> [SensitiveTextMatch] {
         let redactionRects = annotations

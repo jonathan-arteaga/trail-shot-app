@@ -52,6 +52,7 @@ final class CaptureStore {
     private let userDefaults: UserDefaults
     private let recordingsDirectory: URL
     private var exportClearedCaptureIDs: Set<CaptureItem.ID> = []
+    private var sensitiveTextReviewCache = SensitiveTextReviewCache()
 
     init(
         userDefaults: UserDefaults = .standard,
@@ -709,6 +710,7 @@ final class CaptureStore {
         closePinnedCaptures(for: id)
         captures.remove(at: index)
         exportClearedCaptureIDs.remove(id)
+        sensitiveTextReviewCache.remove(captureID: id)
         selectedAnnotationID = nil
 
         if selectedCaptureID == id || selectedCaptureID == nil {
@@ -720,6 +722,7 @@ final class CaptureStore {
     func clearCaptureHistory() {
         captures.removeAll()
         exportClearedCaptureIDs.removeAll()
+        sensitiveTextReviewCache.removeAll()
         selectedCaptureID = nil
         selectedAnnotationID = nil
         closeAllPinnedCaptures()
@@ -737,6 +740,7 @@ final class CaptureStore {
         removedCaptureIDs.forEach(closePinnedCaptures)
         captures.removeAll { removedCaptureIDs.contains($0.id) }
         removedCaptureIDs.forEach { exportClearedCaptureIDs.remove($0) }
+        sensitiveTextReviewCache.remove(captureIDs: removedCaptureIDs)
         if let selectedCaptureID, removedCaptureIDs.contains(selectedCaptureID) {
             self.selectedCaptureID = captures.first?.id
             selectedAnnotationID = nil
@@ -781,7 +785,7 @@ final class CaptureStore {
         let image = captures[index].image
 
         do {
-            let matches = try await sensitiveTextDetectionService.detect(in: image)
+            let matches = try await sensitiveTextMatches(for: id, image: image)
             guard let resolvedIndex = captures.firstIndex(where: { $0.id == id }) else {
                 status = .ready
                 return
@@ -1025,7 +1029,7 @@ final class CaptureStore {
         let image = captures[index].image
 
         do {
-            let matches = try await sensitiveTextDetectionService.detect(in: image)
+            let matches = try await sensitiveTextMatches(for: id, image: image)
             guard let resolvedIndex = captures.firstIndex(where: { $0.id == id }) else {
                 status = .ready
                 return false
@@ -1053,6 +1057,16 @@ final class CaptureStore {
             status = .failed("Could not check sensitive text.")
             return false
         }
+    }
+
+    private func sensitiveTextMatches(for captureID: CaptureItem.ID, image: NSImage) async throws -> [SensitiveTextMatch] {
+        if let cachedMatches = sensitiveTextReviewCache.matches(for: captureID) {
+            return cachedMatches
+        }
+
+        let matches = try await sensitiveTextDetectionService.detect(in: image)
+        sensitiveTextReviewCache.store(matches, for: captureID)
+        return matches
     }
 
     private func insertCapture(image: NSImage, kind: CaptureKind) {
