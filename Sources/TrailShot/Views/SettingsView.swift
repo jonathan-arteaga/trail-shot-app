@@ -20,8 +20,13 @@ struct SettingsView: View {
                 .tabItem {
                     Label("Privacy", systemImage: "lock.shield")
                 }
+
+            aboutPane
+                .tabItem {
+                    Label("About", systemImage: "info.circle")
+                }
         }
-        .frame(width: 520, height: 430)
+        .frame(width: 540, height: 470)
     }
 
     private var capturePane: some View {
@@ -65,6 +70,47 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .padding()
+    }
+
+    private var aboutPane: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(spacing: 12) {
+                TrailShotLogo(size: 46)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(store.appBuildInfo.name)
+                        .font(.title3.weight(.semibold))
+                    Text(store.appBuildInfo.displayVersion)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+
+            Form {
+                Section("Build") {
+                    LabeledContent("Channel", value: store.appBuildInfo.releaseChannel.capitalized)
+                    LabeledContent("Commit", value: store.appBuildInfo.commit)
+                }
+
+                Section("Distribution") {
+                    Button {
+                        store.openReleaseNotes()
+                    } label: {
+                        Label("Open GitHub Releases", systemImage: "arrow.up.right.square")
+                    }
+                    Text("Downloadable DMGs are published through GitHub Releases after Developer ID signing and notarization.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Section("Trust") {
+                    Label("Screen capture and OCR run locally on this Mac.", systemImage: "lock.shield")
+                    Label("Release builds are validated for Developer ID signing and notarization.", systemImage: "checkmark.seal")
+                }
+            }
+            .formStyle(.grouped)
+        }
         .padding()
     }
 

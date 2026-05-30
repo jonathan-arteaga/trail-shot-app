@@ -15,6 +15,12 @@ struct TrailShotApp: App {
                 }
         }
         .commands {
+            CommandGroup(after: .appInfo) {
+                Button("TrailShot Releases") {
+                    store.openReleaseNotes()
+                }
+            }
+
             CommandGroup(after: .newItem) {
                 Button("Capture Area") {
                     Task { await store.captureArea() }
@@ -247,6 +253,10 @@ struct TrailShotApp: App {
 
             SettingsLink {
                 Label("Settings...", systemImage: "gear")
+            }
+
+            Button("Releases") {
+                store.openReleaseNotes()
             }
         }
 

@@ -32,6 +32,7 @@ final class CaptureStore {
     var globalShortcuts: [GlobalShortcut]
     var globalShortcutRegistrations: [GlobalShortcutRegistration] = []
     var shortcutEditingMessage: String?
+    let appBuildInfo: AppBuildInfo
 
     private let captureService = ScreenCaptureService()
     private let recordingService: ScreenRecordingService
@@ -57,6 +58,7 @@ final class CaptureStore {
     ) {
         self.userDefaults = userDefaults
         self.recordingsDirectory = recordingsDirectory
+        appBuildInfo = AppBuildInfo.current()
         recordingService = ScreenRecordingService(outputDirectory: recordingsDirectory)
         captureLibraryService = CaptureLibraryService(directory: captureLibraryDirectory)
         hasScreenRecordingPermission = permissionService.hasPermission()
@@ -571,6 +573,10 @@ final class CaptureStore {
     func openScreenRecordingSettings() {
         permissionService.openSystemSettings()
         status = .failed(screenRecordingPermissionMessage)
+    }
+
+    func openReleaseNotes() {
+        NSWorkspace.shared.open(AppBuildInfo.releasesURL)
     }
 
     func copySelectedCaptureFramed() async {
