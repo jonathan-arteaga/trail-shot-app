@@ -2,6 +2,7 @@ import Foundation
 
 struct AppBuildInfo: Equatable {
     static let releasesURL = URL(string: "https://github.com/jonathan-arteaga/trail-shot-app/releases")!
+    static let latestReleaseAPIURL = URL(string: "https://api.github.com/repos/jonathan-arteaga/trail-shot-app/releases/latest")!
 
     let name: String
     let version: String

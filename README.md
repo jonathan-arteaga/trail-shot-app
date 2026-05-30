@@ -41,6 +41,7 @@ copy or save instantly, and keep the full workflow local.
 - Persistent local capture history with annotations restored from Application Support
 - Local capture and recording retention controls for automatic cleanup
 - In-app build metadata and GitHub Releases handoff
+- Manual update checks against the latest GitHub Release
 - Minimal TrailShot logo/icon with a subtle Astro nod
 - Project-local run script and DMG packaging script
 

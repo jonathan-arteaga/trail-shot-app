@@ -16,6 +16,11 @@ struct TrailShotApp: App {
         }
         .commands {
             CommandGroup(after: .appInfo) {
+                Button("Check for Updates...") {
+                    Task { await store.checkForUpdates() }
+                }
+                .disabled(store.updateCheckState.isChecking)
+
                 Button("TrailShot Releases") {
                     store.openReleaseNotes()
                 }
@@ -254,6 +259,11 @@ struct TrailShotApp: App {
             SettingsLink {
                 Label("Settings...", systemImage: "gear")
             }
+
+            Button("Check for Updates...") {
+                Task { await store.checkForUpdates() }
+            }
+            .disabled(store.updateCheckState.isChecking)
 
             Button("Releases") {
                 store.openReleaseNotes()

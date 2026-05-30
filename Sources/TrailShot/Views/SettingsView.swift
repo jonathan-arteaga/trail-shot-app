@@ -94,6 +94,28 @@ struct SettingsView: View {
 
                 Section("Distribution") {
                     Button {
+                        Task { await store.checkForUpdates() }
+                    } label: {
+                        Label("Check for Updates", systemImage: "arrow.down.circle")
+                    }
+                    .disabled(store.updateCheckState.isChecking)
+
+                    if let updateMessage = store.updateCheckState.message {
+                        Text(updateMessage)
+                            .font(.caption)
+                            .foregroundStyle(updateMessageStyle)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    if case .updateAvailable = store.updateCheckState {
+                        Button {
+                            store.openLatestUpdate()
+                        } label: {
+                            Label("Download Latest DMG", systemImage: "square.and.arrow.down")
+                        }
+                    }
+
+                    Button {
                         store.openReleaseNotes()
                     } label: {
                         Label("Open GitHub Releases", systemImage: "arrow.up.right.square")
@@ -112,6 +134,14 @@ struct SettingsView: View {
             .formStyle(.grouped)
         }
         .padding()
+    }
+
+    private var updateMessageStyle: Color {
+        if case .failed = store.updateCheckState {
+            return .red
+        }
+
+        return .secondary
     }
 
     private var shortcutsPane: some View {

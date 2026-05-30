@@ -32,6 +32,7 @@ final class CaptureStore {
     var globalShortcuts: [GlobalShortcut]
     var globalShortcutRegistrations: [GlobalShortcutRegistration] = []
     var shortcutEditingMessage: String?
+    var updateCheckState: UpdateCheckState = .idle
     let appBuildInfo: AppBuildInfo
 
     private let captureService = ScreenCaptureService()
@@ -47,6 +48,7 @@ final class CaptureStore {
     private let captureLibraryService: CaptureLibraryService
     private let permissionService = ScreenRecordingPermissionService()
     private let globalHotKeyService = GlobalHotKeyService()
+    private let updateCheckService: UpdateCheckService
     private let userDefaults: UserDefaults
     private let recordingsDirectory: URL
     private var exportClearedCaptureIDs: Set<CaptureItem.ID> = []
@@ -54,10 +56,12 @@ final class CaptureStore {
     init(
         userDefaults: UserDefaults = .standard,
         recordingsDirectory: URL = ScreenRecordingService.defaultRecordingsDirectory,
-        captureLibraryDirectory: URL = CaptureLibraryService.defaultLibraryDirectory
+        captureLibraryDirectory: URL = CaptureLibraryService.defaultLibraryDirectory,
+        updateCheckService: UpdateCheckService = UpdateCheckService()
     ) {
         self.userDefaults = userDefaults
         self.recordingsDirectory = recordingsDirectory
+        self.updateCheckService = updateCheckService
         appBuildInfo = AppBuildInfo.current()
         recordingService = ScreenRecordingService(outputDirectory: recordingsDirectory)
         captureLibraryService = CaptureLibraryService(directory: captureLibraryDirectory)
@@ -577,6 +581,33 @@ final class CaptureStore {
 
     func openReleaseNotes() {
         NSWorkspace.shared.open(AppBuildInfo.releasesURL)
+    }
+
+    func checkForUpdates() async {
+        updateCheckState = .checking
+
+        do {
+            let updateInfo = try await updateCheckService.checkForUpdates(currentVersion: appBuildInfo.version)
+            if updateInfo.isNewerAvailable {
+                updateCheckState = .updateAvailable(updateInfo)
+                status = .working("TrailShot \(updateInfo.latestVersion) available")
+            } else {
+                updateCheckState = .upToDate(updateInfo)
+                showTransientStatus("TrailShot is up to date")
+            }
+        } catch {
+            let message = error.localizedDescription
+            updateCheckState = .failed(message)
+            status = .failed(message)
+        }
+    }
+
+    func openLatestUpdate() {
+        if case .updateAvailable(let updateInfo) = updateCheckState {
+            NSWorkspace.shared.open(updateInfo.downloadURL ?? updateInfo.releaseURL)
+        } else {
+            openReleaseNotes()
+        }
     }
 
     func copySelectedCaptureFramed() async {
