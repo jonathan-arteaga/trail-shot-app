@@ -31,7 +31,7 @@ enum GlobalShortcutAction: UInt32, CaseIterable, Identifiable, Codable {
         case .captureArea:
             "Capture Area"
         case .captureFullScreen:
-            "Capture Full Screen"
+            "Capture All Displays"
         case .captureWindow:
             "Capture Window"
         case .toggleRecording:

@@ -32,7 +32,7 @@ struct TrailShotApp: App {
                 }
                 .keyboardShortcut("4", modifiers: [.control, .option, .shift])
 
-                Button("Capture Full Screen") {
+                Button("Capture All Displays") {
                     Task { await store.captureFullScreen() }
                 }
                 .keyboardShortcut("3", modifiers: [.control, .option, .shift])
@@ -166,7 +166,7 @@ struct TrailShotApp: App {
             }
             .keyboardShortcut("4", modifiers: [.control, .option, .shift])
 
-            Button("Capture Full Screen") {
+            Button("Capture All Displays") {
                 Task { await store.captureFullScreen() }
             }
             .keyboardShortcut("3", modifiers: [.control, .option, .shift])

@@ -44,6 +44,25 @@ struct ScreenCaptureService {
         return NSImage(cgImage: cgImage, size: CGSize(width: cgImage.width, height: cgImage.height))
     }
 
+    func captureAllDisplays() async throws -> NSImage {
+        let content = try await SCShareableContent.current
+        guard let desktopFrame = Self.desktopFrame(displayFrames: content.displays.map(\.frame)) else {
+            throw ScreenCaptureError.captureUnavailable
+        }
+
+        let displaySlices = Self.displaySlices(for: desktopFrame, displays: content.displays)
+        let excludedWindows = Self.ownApplicationWindows(in: content)
+        guard !displaySlices.isEmpty else {
+            throw ScreenCaptureError.captureUnavailable
+        }
+
+        if displaySlices.count == 1, let displaySlice = displaySlices.first {
+            return try await captureDisplaySlice(displaySlice, excludingWindows: excludedWindows)
+        }
+
+        return try await stitchedImage(for: desktopFrame, displaySlices: displaySlices, excludingWindows: excludedWindows)
+    }
+
     func captureMainDisplay(rect: CGRect) async throws -> NSImage {
         guard rect.width >= 8, rect.height >= 8 else {
             throw ScreenCaptureError.invalidSelection
@@ -197,6 +216,14 @@ struct ScreenCaptureService {
                 )
             )
         }
+    }
+
+    static func desktopFrame(displayFrames: [CGRect]) -> CGRect? {
+        guard let firstFrame = displayFrames.first else { return nil }
+        return displayFrames.dropFirst().reduce(firstFrame) { partialResult, displayFrame in
+            partialResult.union(displayFrame)
+        }
+        .integral
     }
 
     private static func displaySlices(

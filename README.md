@@ -12,7 +12,7 @@ copy or save instantly, and keep the full workflow local.
 - Capture-flow Settings for clipboard copy, quick-access bubble, and automatic redaction
 - Timed capture delay with visible countdown for transient UI states
 - First-run Screen Recording permission guidance
-- Full-screen capture through ScreenCaptureKit
+- All-display full-screen capture through ScreenCaptureKit
 - Multi-display area selection with stitched ScreenCaptureKit region capture on modern macOS
 - Display and area captures exclude TrailShot’s own windows
 - Hover-targeted window capture overlay
@@ -60,7 +60,7 @@ disabling Apple's built-in screenshot keys. They can be changed from TrailShot
 Settings.
 
 - Capture area: `⌃⌥⇧4`
-- Capture full screen: `⌃⌥⇧3`
+- Capture all displays: `⌃⌥⇧3`
 - Capture window: `⌃⌥⇧5`
 - Record or stop: `⌃⌥⇧R`
 - Record area: `⌃⌥⇧A`

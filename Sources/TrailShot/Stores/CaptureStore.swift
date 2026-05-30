@@ -324,10 +324,10 @@ final class CaptureStore {
     func captureFullScreen() async {
         guard ensureScreenRecordingPermission() else { return }
         guard await waitForCaptureDelay(action: "Capturing screen") else { return }
-        status = .working("Capturing full screen")
+        status = .working("Capturing displays")
 
         do {
-            let image = try await captureService.captureMainDisplay()
+            let image = try await captureService.captureAllDisplays()
             insertCapture(image: image, kind: .fullScreen)
             status = .ready
         } catch {

@@ -37,4 +37,35 @@ final class ScreenCaptureServiceTests: XCTestCase {
             )
         ])
     }
+
+    func testDesktopFrameUnionsDisplaysForFullScreenCapture() {
+        let displayFrames = [
+            CGRect(x: -1280, y: 160, width: 1280, height: 720),
+            CGRect(x: 0, y: 0, width: 1440, height: 900),
+            CGRect(x: 1440, y: 80, width: 1280, height: 800)
+        ]
+
+        let desktopFrame = ScreenCaptureService.desktopFrame(displayFrames: displayFrames)
+
+        XCTAssertEqual(desktopFrame, CGRect(x: -1280, y: 0, width: 4000, height: 900))
+    }
+
+    func testDisplaySlicesCoverAllDisplaysFromDesktopFrame() throws {
+        let displayFrames = [
+            CGRect(x: -1280, y: 160, width: 1280, height: 720),
+            CGRect(x: 0, y: 0, width: 1440, height: 900),
+            CGRect(x: 1440, y: 80, width: 1280, height: 800)
+        ]
+        let desktopFrame = try XCTUnwrap(ScreenCaptureService.desktopFrame(displayFrames: displayFrames))
+
+        let slices = ScreenCaptureService.displaySlices(for: desktopFrame, displayFrames: displayFrames)
+
+        XCTAssertEqual(slices.count, 3)
+        XCTAssertEqual(slices[0].sourceRect, CGRect(x: -1280, y: 160, width: 1280, height: 720))
+        XCTAssertEqual(slices[0].destinationRect, CGRect(x: 0, y: 160, width: 1280, height: 720))
+        XCTAssertEqual(slices[1].sourceRect, CGRect(x: 0, y: 0, width: 1440, height: 900))
+        XCTAssertEqual(slices[1].destinationRect, CGRect(x: 1280, y: 0, width: 1440, height: 900))
+        XCTAssertEqual(slices[2].sourceRect, CGRect(x: 1440, y: 80, width: 1280, height: 800))
+        XCTAssertEqual(slices[2].destinationRect, CGRect(x: 2720, y: 80, width: 1280, height: 800))
+    }
 }

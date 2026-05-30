@@ -54,7 +54,7 @@ struct HeaderView: View {
             Button {
                 Task { await store.captureFullScreen() }
             } label: {
-                Label("Full", systemImage: "macwindow")
+                Label("All Displays", systemImage: "rectangle.on.rectangle")
             }
 
             Button {
