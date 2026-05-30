@@ -14,6 +14,7 @@ copy or save instantly, and keep the full workflow local.
 - First-run Screen Recording permission guidance
 - Full-screen capture through ScreenCaptureKit
 - Multi-display area selection with stitched ScreenCaptureKit region capture on modern macOS
+- Display and area captures exclude TrailShot’s own windows
 - Hover-targeted window capture overlay
 - ScreenCaptureKit-backed window picker fallback and window capture
 - Window picker thumbnails and row hover highlighting

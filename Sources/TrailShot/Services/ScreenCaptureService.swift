@@ -32,7 +32,7 @@ struct ScreenCaptureService {
             throw ScreenCaptureError.captureUnavailable
         }
 
-        let filter = SCContentFilter(display: display, excludingWindows: [])
+        let filter = SCContentFilter(display: display, excludingWindows: Self.ownApplicationWindows(in: content))
         let configuration = SCStreamConfiguration()
         configuration.width = CGDisplayPixelsWide(display.displayID)
         configuration.height = CGDisplayPixelsHigh(display.displayID)
@@ -52,18 +52,22 @@ struct ScreenCaptureService {
         let selectionRect = rect.integral
         let content = try await SCShareableContent.current
         let displaySlices = Self.displaySlices(for: selectionRect, displays: content.displays)
+        let excludedWindows = Self.ownApplicationWindows(in: content)
         guard !displaySlices.isEmpty else {
             throw ScreenCaptureError.captureUnavailable
         }
 
         if displaySlices.count == 1, let displaySlice = displaySlices.first {
-            return try await captureDisplaySlice(displaySlice)
+            return try await captureDisplaySlice(displaySlice, excludingWindows: excludedWindows)
         }
 
-        return try await stitchedImage(for: selectionRect, displaySlices: displaySlices)
+        return try await stitchedImage(for: selectionRect, displaySlices: displaySlices, excludingWindows: excludedWindows)
     }
 
-    private func captureDisplaySlice(_ displaySlice: (display: SCDisplay, slice: ScreenCaptureDisplaySlice)) async throws -> NSImage {
+    private func captureDisplaySlice(
+        _ displaySlice: (display: SCDisplay, slice: ScreenCaptureDisplaySlice),
+        excludingWindows: [SCWindow]
+    ) async throws -> NSImage {
         let display = displaySlice.display
         let sourceRect = displaySlice.slice.sourceRect
         let localSourceRect = CGRect(
@@ -81,18 +85,19 @@ struct ScreenCaptureService {
         configuration.capturesAudio = false
         configuration.captureResolution = .best
 
-        let filter = SCContentFilter(display: display, excludingWindows: [])
+        let filter = SCContentFilter(display: display, excludingWindows: excludingWindows)
         let cgImage = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration)
         return NSImage(cgImage: cgImage, size: sourceRect.size)
     }
 
     private func stitchedImage(
         for selectionRect: CGRect,
-        displaySlices: [(display: SCDisplay, slice: ScreenCaptureDisplaySlice)]
+        displaySlices: [(display: SCDisplay, slice: ScreenCaptureDisplaySlice)],
+        excludingWindows: [SCWindow]
     ) async throws -> NSImage {
         var segments: [(image: NSImage, destinationRect: CGRect)] = []
         for displaySlice in displaySlices {
-            let segment = try await captureDisplaySlice(displaySlice)
+            let segment = try await captureDisplaySlice(displaySlice, excludingWindows: excludingWindows)
             segments.append((segment, displaySlice.slice.destinationRect))
         }
 
@@ -205,6 +210,13 @@ struct ScreenCaptureService {
             }
 
             return (display, slice)
+        }
+    }
+
+    private static func ownApplicationWindows(in content: SCShareableContent) -> [SCWindow] {
+        let appPID = pid_t(ProcessInfo.processInfo.processIdentifier)
+        return content.windows.filter { window in
+            window.owningApplication?.processID == appPID
         }
     }
 }
