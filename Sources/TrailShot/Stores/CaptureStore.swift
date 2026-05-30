@@ -655,6 +655,12 @@ final class CaptureStore {
         }
 
         let provider = NSItemProvider()
+        if let capture = capture(id: captureID) {
+            provider.suggestedName = exportService.suggestedFilename(
+                for: capture,
+                variant: framed ? .framed : .annotated
+            )
+        }
         provider.registerDataRepresentation(forTypeIdentifier: UTType.png.identifier, visibility: .all) { completion in
             Task { @MainActor in
                 guard

@@ -98,6 +98,24 @@ final class ImageExportServiceTests: XCTestCase {
     }
 
     @MainActor
+    func testDragItemProviderUsesSuggestedExportFilename() {
+        let sourceImage = makeSourceImage()
+        let capture = CaptureItem(
+            kind: .area,
+            createdAt: Date(),
+            image: sourceImage,
+            pixelSize: sourceImage.size,
+            name: "Opportunity / Case"
+        )
+        let store = CaptureStore(captureLibraryDirectory: Self.temporaryCaptureDirectory())
+        store.captures = [capture]
+        store.selectedCaptureID = capture.id
+
+        XCTAssertEqual(store.dragItemProvider(framed: false).suggestedName, "Opportunity-Case.png")
+        XCTAssertEqual(store.dragItemProvider(framed: true).suggestedName, "Opportunity-Case-framed.png")
+    }
+
+    @MainActor
     private func makeSourceImage() -> NSImage {
         let size = NSSize(width: 360, height: 220)
         let image = NSImage(size: size)
@@ -111,5 +129,10 @@ final class ImageExportServiceTests: XCTestCase {
 
         image.unlockFocus()
         return image
+    }
+
+    private static func temporaryCaptureDirectory() -> URL {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent("TrailShotImageExportTests-\(UUID().uuidString)", isDirectory: true)
     }
 }
