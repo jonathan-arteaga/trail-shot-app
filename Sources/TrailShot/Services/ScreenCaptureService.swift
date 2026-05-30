@@ -19,6 +19,12 @@ enum ScreenCaptureError: LocalizedError {
     }
 }
 
+struct ScreenCaptureDisplaySlice: Equatable {
+    let displayFrame: CGRect
+    let sourceRect: CGRect
+    let destinationRect: CGRect
+}
+
 struct ScreenCaptureService {
     func captureMainDisplay() async throws -> NSImage {
         let content = try await SCShareableContent.current
@@ -43,16 +49,23 @@ struct ScreenCaptureService {
             throw ScreenCaptureError.invalidSelection
         }
 
+        let selectionRect = rect.integral
         let content = try await SCShareableContent.current
-        guard let display = Self.display(for: rect, in: content.displays) else {
+        let displaySlices = Self.displaySlices(for: selectionRect, displays: content.displays)
+        guard !displaySlices.isEmpty else {
             throw ScreenCaptureError.captureUnavailable
         }
 
-        let sourceRect = rect.intersection(display.frame)
-        guard sourceRect.width >= 8, sourceRect.height >= 8 else {
-            throw ScreenCaptureError.invalidSelection
+        if displaySlices.count == 1, let displaySlice = displaySlices.first {
+            return try await captureDisplaySlice(displaySlice)
         }
 
+        return try await stitchedImage(for: selectionRect, displaySlices: displaySlices)
+    }
+
+    private func captureDisplaySlice(_ displaySlice: (display: SCDisplay, slice: ScreenCaptureDisplaySlice)) async throws -> NSImage {
+        let display = displaySlice.display
+        let sourceRect = displaySlice.slice.sourceRect
         let localSourceRect = CGRect(
             x: sourceRect.minX - display.frame.minX,
             y: sourceRect.minY - display.frame.minY,
@@ -70,7 +83,28 @@ struct ScreenCaptureService {
 
         let filter = SCContentFilter(display: display, excludingWindows: [])
         let cgImage = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration)
-        return NSImage(cgImage: cgImage, size: rect.size)
+        return NSImage(cgImage: cgImage, size: sourceRect.size)
+    }
+
+    private func stitchedImage(
+        for selectionRect: CGRect,
+        displaySlices: [(display: SCDisplay, slice: ScreenCaptureDisplaySlice)]
+    ) async throws -> NSImage {
+        var segments: [(image: NSImage, destinationRect: CGRect)] = []
+        for displaySlice in displaySlices {
+            let segment = try await captureDisplaySlice(displaySlice)
+            segments.append((segment, displaySlice.slice.destinationRect))
+        }
+
+        let image = NSImage(size: selectionRect.size)
+        image.lockFocus()
+
+        for segment in segments {
+            segment.image.draw(in: segment.destinationRect)
+        }
+
+        image.unlockFocus()
+        return image
     }
 
     func captureFrontmostWindow() async throws -> NSImage {
@@ -141,22 +175,36 @@ struct ScreenCaptureService {
         return NSImage(cgImage: cgImage, size: CGSize(width: cgImage.width, height: cgImage.height))
     }
 
-    private static func display(for rect: CGRect, in displays: [SCDisplay]) -> SCDisplay? {
-        displays
-            .map { display in
-                (display: display, area: display.frame.intersection(rect).area)
-            }
-            .filter { $0.area > 0 }
-            .max { lhs, rhs in lhs.area < rhs.area }?
-            .display
-            ?? displays.first(where: { $0.displayID == CGMainDisplayID() })
-            ?? displays.first
-    }
-}
+    static func displaySlices(for selectionRect: CGRect, displayFrames: [CGRect]) -> [ScreenCaptureDisplaySlice] {
+        let selectionRect = selectionRect.integral
+        return displayFrames.compactMap { displayFrame in
+            let sourceRect = selectionRect.intersection(displayFrame).integral
+            guard sourceRect.width >= 1, sourceRect.height >= 1 else { return nil }
 
-private extension CGRect {
-    var area: CGFloat {
-        guard !isNull, !isEmpty else { return 0 }
-        return width * height
+            return ScreenCaptureDisplaySlice(
+                displayFrame: displayFrame,
+                sourceRect: sourceRect,
+                destinationRect: CGRect(
+                    x: sourceRect.minX - selectionRect.minX,
+                    y: sourceRect.minY - selectionRect.minY,
+                    width: sourceRect.width,
+                    height: sourceRect.height
+                )
+            )
+        }
+    }
+
+    private static func displaySlices(
+        for selectionRect: CGRect,
+        displays: [SCDisplay]
+    ) -> [(display: SCDisplay, slice: ScreenCaptureDisplaySlice)] {
+        let slices = displaySlices(for: selectionRect, displayFrames: displays.map(\.frame))
+        return slices.compactMap { slice in
+            guard let display = displays.first(where: { $0.frame == slice.displayFrame }) else {
+                return nil
+            }
+
+            return (display, slice)
+        }
     }
 }

@@ -13,7 +13,7 @@ copy or save instantly, and keep the full workflow local.
 - Timed capture delay with visible countdown for transient UI states
 - First-run Screen Recording permission guidance
 - Full-screen capture through ScreenCaptureKit
-- Multi-display area selection with ScreenCaptureKit region capture on modern macOS
+- Multi-display area selection with stitched ScreenCaptureKit region capture on modern macOS
 - Hover-targeted window capture overlay
 - ScreenCaptureKit-backed window picker fallback and window capture
 - Window picker thumbnails and row hover highlighting
@@ -135,6 +135,5 @@ of gravity is a single clean workflow:
 
 ## Near-Term Build Targets
 
-- Cross-display selection polish and validation
 - Window targeting polish on multi-display setups
 - Developer ID signing, hardened runtime, notarization, and stapled DMG release
