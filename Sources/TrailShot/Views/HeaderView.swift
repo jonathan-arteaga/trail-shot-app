@@ -18,6 +18,17 @@ struct HeaderView: View {
 
             Spacer()
 
+            Menu {
+                Picker("Capture Delay", selection: captureDelay) {
+                    ForEach(CaptureDelayOption.allCases) { delay in
+                        Text(delay.title).tag(delay)
+                    }
+                }
+            } label: {
+                Label(store.captureDelay.shortTitle, systemImage: "timer")
+            }
+            .help("Capture delay")
+
             Button {
                 Task { await store.toggleRecording() }
             } label: {
@@ -68,5 +79,12 @@ struct HeaderView: View {
         case .failed(let message):
             message
         }
+    }
+
+    private var captureDelay: Binding<CaptureDelayOption> {
+        Binding(
+            get: { store.captureDelay },
+            set: { store.setCaptureDelay($0) }
+        )
     }
 }

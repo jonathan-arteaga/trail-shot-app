@@ -29,13 +29,16 @@ final class PrivacyPreferenceTests: XCTestCase {
         let store = CaptureStore(userDefaults: defaults, captureLibraryDirectory: Self.temporaryCaptureDirectory())
         XCTAssertTrue(store.isAutoCopyAfterCaptureEnabled)
         XCTAssertTrue(store.isQuickAccessAfterCaptureEnabled)
+        XCTAssertEqual(store.captureDelay, .off)
 
         store.setAutoCopyAfterCaptureEnabled(false)
         store.setQuickAccessAfterCaptureEnabled(false)
+        store.setCaptureDelay(.fiveSeconds)
 
         let restoredStore = CaptureStore(userDefaults: defaults, captureLibraryDirectory: Self.temporaryCaptureDirectory())
         XCTAssertFalse(restoredStore.isAutoCopyAfterCaptureEnabled)
         XCTAssertFalse(restoredStore.isQuickAccessAfterCaptureEnabled)
+        XCTAssertEqual(restoredStore.captureDelay, .fiveSeconds)
     }
 
     @MainActor

@@ -66,6 +66,54 @@ enum CaptureRetentionPolicy: String, CaseIterable, Identifiable, Codable {
     }
 }
 
+enum CaptureDelayOption: String, CaseIterable, Identifiable, Codable {
+    case off
+    case threeSeconds
+    case fiveSeconds
+    case tenSeconds
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .off:
+            "Off"
+        case .threeSeconds:
+            "3 seconds"
+        case .fiveSeconds:
+            "5 seconds"
+        case .tenSeconds:
+            "10 seconds"
+        }
+    }
+
+    var shortTitle: String {
+        switch self {
+        case .off:
+            "No Delay"
+        case .threeSeconds:
+            "3s"
+        case .fiveSeconds:
+            "5s"
+        case .tenSeconds:
+            "10s"
+        }
+    }
+
+    var seconds: Int {
+        switch self {
+        case .off:
+            0
+        case .threeSeconds:
+            3
+        case .fiveSeconds:
+            5
+        case .tenSeconds:
+            10
+        }
+    }
+}
+
 struct CaptureItem: Identifiable, Hashable {
     let id: UUID
     let kind: CaptureKind

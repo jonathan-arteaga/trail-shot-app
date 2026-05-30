@@ -27,6 +27,16 @@ struct SettingsView: View {
     private var capturePane: some View {
         Form {
             Section("After Capture") {
+                Picker("Capture delay", selection: captureDelay) {
+                    ForEach(CaptureDelayOption.allCases) { delay in
+                        Text(delay.title).tag(delay)
+                    }
+                }
+                Text("Useful for menus, hover states, and other UI that needs a moment before capture.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
                 Toggle("Copy new screenshots to clipboard", isOn: autoCopyAfterCaptureEnabled)
                 Text("Keeps the fastest path one click away in chat, documents, and Salesforce workflows.")
                     .font(.caption)
@@ -182,6 +192,13 @@ struct SettingsView: View {
         Binding(
             get: { store.isAutoCopyAfterCaptureEnabled },
             set: { store.setAutoCopyAfterCaptureEnabled($0) }
+        )
+    }
+
+    private var captureDelay: Binding<CaptureDelayOption> {
+        Binding(
+            get: { store.captureDelay },
+            set: { store.setCaptureDelay($0) }
         )
     }
 

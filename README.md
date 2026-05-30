@@ -10,6 +10,7 @@ copy or save instantly, and keep the full workflow local.
 - Menu bar capture actions
 - Editable conflict-safe global shortcuts with native Settings controls
 - Capture-flow Settings for clipboard copy, quick-access bubble, and automatic redaction
+- Timed capture delay with visible countdown for transient UI states
 - First-run Screen Recording permission guidance
 - Full-screen capture through ScreenCaptureKit
 - Multi-display area selection with ScreenCaptureKit region capture on modern macOS

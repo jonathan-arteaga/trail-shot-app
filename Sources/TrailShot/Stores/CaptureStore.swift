@@ -26,6 +26,7 @@ final class CaptureStore {
     var isQuickAccessAfterCaptureEnabled: Bool
     var isAutoRedactAfterCaptureEnabled: Bool
     var isSensitiveExportGuardEnabled: Bool
+    var captureDelay: CaptureDelayOption
     var captureRetentionPolicy: CaptureRetentionPolicy
     var recordingRetentionPolicy: CaptureRetentionPolicy
     var globalShortcuts: [GlobalShortcut]
@@ -64,6 +65,7 @@ final class CaptureStore {
         isQuickAccessAfterCaptureEnabled = userDefaults.object(forKey: PreferencesKeys.quickAccessAfterCaptureEnabled) as? Bool ?? true
         isAutoRedactAfterCaptureEnabled = userDefaults.object(forKey: PreferencesKeys.autoRedactAfterCaptureEnabled) as? Bool ?? false
         isSensitiveExportGuardEnabled = userDefaults.object(forKey: PreferencesKeys.sensitiveExportGuardEnabled) as? Bool ?? true
+        captureDelay = Self.loadCaptureDelay(from: userDefaults)
         captureRetentionPolicy = Self.loadCaptureRetentionPolicy(from: userDefaults)
         recordingRetentionPolicy = Self.loadRecordingRetentionPolicy(from: userDefaults)
         globalShortcuts = Self.loadGlobalShortcuts(from: userDefaults)
@@ -147,6 +149,11 @@ final class CaptureStore {
     func setQuickAccessAfterCaptureEnabled(_ enabled: Bool) {
         isQuickAccessAfterCaptureEnabled = enabled
         userDefaults.set(enabled, forKey: PreferencesKeys.quickAccessAfterCaptureEnabled)
+    }
+
+    func setCaptureDelay(_ delay: CaptureDelayOption) {
+        captureDelay = delay
+        userDefaults.set(delay.rawValue, forKey: PreferencesKeys.captureDelay)
     }
 
     func setCaptureRetentionPolicy(_ policy: CaptureRetentionPolicy) {
@@ -251,6 +258,17 @@ final class CaptureStore {
         return policy
     }
 
+    private static func loadCaptureDelay(from userDefaults: UserDefaults) -> CaptureDelayOption {
+        guard
+            let rawValue = userDefaults.string(forKey: PreferencesKeys.captureDelay),
+            let delay = CaptureDelayOption(rawValue: rawValue)
+        else {
+            return .off
+        }
+
+        return delay
+    }
+
     private static func loadRecordingRetentionPolicy(from userDefaults: UserDefaults) -> CaptureRetentionPolicy {
         guard
             let rawValue = userDefaults.string(forKey: PreferencesKeys.recordingRetentionPolicy),
@@ -287,6 +305,7 @@ final class CaptureStore {
                 return
             }
 
+            guard await waitForCaptureDelay(action: "Capturing selection") else { return }
             status = .working("Capturing selection")
             let image = try await captureService.captureMainDisplay(rect: rect)
             insertCapture(image: image, kind: .area)
@@ -298,6 +317,7 @@ final class CaptureStore {
 
     func captureFullScreen() async {
         guard ensureScreenRecordingPermission() else { return }
+        guard await waitForCaptureDelay(action: "Capturing screen") else { return }
         status = .working("Capturing full screen")
 
         do {
@@ -311,6 +331,7 @@ final class CaptureStore {
 
     func captureFrontmostWindow() async {
         guard ensureScreenRecordingPermission() else { return }
+        guard await waitForCaptureDelay(action: "Capturing window") else { return }
         status = .working("Capturing window")
 
         do {
@@ -338,6 +359,7 @@ final class CaptureStore {
                 return
             }
 
+            guard await waitForCaptureDelay(action: "Capturing \(candidate.appName)") else { return }
             status = .working("Capturing \(candidate.appName)")
             let image = try await captureService.captureWindow(id: candidate.id)
             insertCapture(image: image, kind: .window)
@@ -370,6 +392,7 @@ final class CaptureStore {
     func captureWindow(_ candidate: CaptureWindowCandidate) async {
         guard ensureScreenRecordingPermission() else { return }
         isShowingWindowPicker = false
+        guard await waitForCaptureDelay(action: "Capturing \(candidate.appName)") else { return }
         status = .working("Capturing \(candidate.appName)")
 
         do {
@@ -1025,6 +1048,23 @@ final class CaptureStore {
         }
     }
 
+    private func waitForCaptureDelay(action: String) async -> Bool {
+        let seconds = captureDelay.seconds
+        guard seconds > 0 else { return true }
+
+        for remaining in stride(from: seconds, through: 1, by: -1) {
+            status = .working("\(action) in \(remaining)")
+            do {
+                try await Task.sleep(for: .seconds(1))
+            } catch {
+                status = .ready
+                return false
+            }
+        }
+
+        return true
+    }
+
     private func rememberRecording(_ url: URL) {
         guard let recording = Self.recordingItem(for: url) else {
             lastRecordingURL = url
@@ -1138,6 +1178,7 @@ private enum PreferencesKeys {
     static let quickAccessAfterCaptureEnabled = "quickAccessAfterCaptureEnabled"
     static let autoRedactAfterCaptureEnabled = "autoRedactAfterCaptureEnabled"
     static let sensitiveExportGuardEnabled = "sensitiveExportGuardEnabled"
+    static let captureDelay = "captureDelay"
     static let captureRetentionPolicy = "captureRetentionPolicy"
     static let recordingRetentionPolicy = "recordingRetentionPolicy"
     static let globalShortcuts = "globalShortcuts"

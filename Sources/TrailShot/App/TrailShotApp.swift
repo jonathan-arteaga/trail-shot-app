@@ -48,6 +48,8 @@ struct TrailShotApp: App {
                     Task { await store.showWindowPicker() }
                 }
 
+                CaptureDelayMenu(store: store)
+
                 Divider()
 
                 Button("Copy Annotated Image") {
@@ -167,6 +169,8 @@ struct TrailShotApp: App {
                 Task { await store.showWindowPicker() }
             }
 
+            CaptureDelayMenu(store: store)
+
             Button(store.isRecording ? "Stop Recording" : "Start Recording") {
                 Task { await store.toggleRecording() }
             }
@@ -248,6 +252,27 @@ struct TrailShotApp: App {
 
         Settings {
             SettingsView(store: store)
+        }
+    }
+}
+
+@MainActor
+private struct CaptureDelayMenu: View {
+    @Bindable var store: CaptureStore
+
+    var body: some View {
+        Menu("Delay: \(store.captureDelay.title)") {
+            ForEach(CaptureDelayOption.allCases) { delay in
+                Button {
+                    store.setCaptureDelay(delay)
+                } label: {
+                    if store.captureDelay == delay {
+                        Label(delay.title, systemImage: "checkmark")
+                    } else {
+                        Text(delay.title)
+                    }
+                }
+            }
         }
     }
 }
