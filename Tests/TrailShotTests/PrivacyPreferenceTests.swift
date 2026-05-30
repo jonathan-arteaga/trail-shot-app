@@ -10,11 +10,14 @@ final class PrivacyPreferenceTests: XCTestCase {
 
         let store = CaptureStore(userDefaults: defaults, captureLibraryDirectory: Self.temporaryCaptureDirectory())
         XCTAssertFalse(store.isAutoRedactAfterCaptureEnabled)
+        XCTAssertTrue(store.isSensitiveExportGuardEnabled)
 
         store.setAutoRedactAfterCaptureEnabled(true)
+        store.setSensitiveExportGuardEnabled(false)
 
         let restoredStore = CaptureStore(userDefaults: defaults, captureLibraryDirectory: Self.temporaryCaptureDirectory())
         XCTAssertTrue(restoredStore.isAutoRedactAfterCaptureEnabled)
+        XCTAssertFalse(restoredStore.isSensitiveExportGuardEnabled)
     }
 
     @MainActor

@@ -51,13 +51,13 @@ struct TrailShotApp: App {
                 Divider()
 
                 Button("Copy Annotated Image") {
-                    store.copySelectedCapture()
+                    Task { await store.copySelectedCapture() }
                 }
                 .keyboardShortcut("c", modifiers: [.command, .shift])
                 .disabled(store.selectedCapture == nil)
 
                 Button("Copy Framed Image") {
-                    store.copySelectedCaptureFramed()
+                    Task { await store.copySelectedCaptureFramed() }
                 }
                 .keyboardShortcut("f", modifiers: [.command, .shift])
                 .disabled(store.selectedCapture == nil)
@@ -181,12 +181,12 @@ struct TrailShotApp: App {
             Divider()
 
             Button("Copy Latest") {
-                store.copySelectedCapture()
+                Task { await store.copySelectedCapture() }
             }
             .disabled(store.selectedCapture == nil)
 
             Button("Copy Latest Framed") {
-                store.copySelectedCaptureFramed()
+                Task { await store.copySelectedCaptureFramed() }
             }
             .disabled(store.selectedCapture == nil)
 

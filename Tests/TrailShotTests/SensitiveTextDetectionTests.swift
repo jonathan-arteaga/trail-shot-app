@@ -32,6 +32,24 @@ final class SensitiveTextDetectionTests: XCTestCase {
         }
     }
 
+    func testExportGuardOnlyAllowsCoveredSensitiveMatches() {
+        let match = SensitiveTextMatch(
+            text: "admin@example.com",
+            confidence: 0.98,
+            boundingBox: CGRect(x: 0.24, y: 0.38, width: 0.28, height: 0.08)
+        )
+        let coveringRedaction = match.redactionAnnotation
+        let smallRedaction = CaptureAnnotation(
+            tool: .redact,
+            start: CGPoint(x: 0.25, y: 0.55),
+            end: CGPoint(x: 0.32, y: 0.58)
+        )
+
+        XCTAssertEqual(SensitiveExportGuard.uncoveredMatches(in: [match], annotations: [coveringRedaction]), [])
+        XCTAssertEqual(SensitiveExportGuard.uncoveredMatches(in: [match], annotations: [smallRedaction]), [match])
+        XCTAssertEqual(SensitiveExportGuard.uncoveredMatches(in: [match], annotations: []), [match])
+    }
+
     @MainActor
     func testVisionFixtureFindsRedactableText() async throws {
         let image = makeFixtureImage(lines: [

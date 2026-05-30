@@ -44,7 +44,7 @@ private struct PreviewPane: View {
                     .frame(maxWidth: 420)
 
                     Button {
-                        store.copySelectedCapture()
+                        Task { await store.copySelectedCapture() }
                     } label: {
                         Label("Copy", systemImage: "doc.on.doc")
                     }
@@ -56,7 +56,7 @@ private struct PreviewPane: View {
                     }
 
                     Button {
-                        store.copySelectedCaptureFramed()
+                        Task { await store.copySelectedCaptureFramed() }
                     } label: {
                         Label("Frame", systemImage: "photo.on.rectangle")
                     }
@@ -364,12 +364,12 @@ private struct ToolInspectorView: View {
                     }
                 }
                 Button {
-                    store.copySelectedCapture()
+                    Task { await store.copySelectedCapture() }
                 } label: {
                     Label("Copy annotated image", systemImage: "doc.on.doc")
                 }
                 Button {
-                    store.copySelectedCaptureFramed()
+                    Task { await store.copySelectedCaptureFramed() }
                 } label: {
                     Label("Copy framed image", systemImage: "photo.on.rectangle")
                 }
@@ -402,18 +402,6 @@ private struct ToolInspectorView: View {
                 }
             }
             .font(.caption)
-
-            Divider()
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Next up")
-                    .font(.subheadline.weight(.semibold))
-                Label("Window thumbnails", systemImage: "photo.on.rectangle")
-                Label("Multi-display capture", systemImage: "display.2")
-                Label("Recording trim", systemImage: "timeline.selection")
-            }
-            .font(.caption)
-            .foregroundStyle(.secondary)
 
             Spacer()
         }

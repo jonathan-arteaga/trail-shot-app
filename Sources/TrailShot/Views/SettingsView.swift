@@ -46,6 +46,12 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+
+                Toggle("Check screenshots before sharing", isOn: sensitiveExportGuardEnabled)
+                Text("Copy, save, and drag actions scan locally first and pause when visible sensitive text needs review.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .formStyle(.grouped)
@@ -190,6 +196,13 @@ struct SettingsView: View {
         Binding(
             get: { store.isAutoRedactAfterCaptureEnabled },
             set: { store.setAutoRedactAfterCaptureEnabled($0) }
+        )
+    }
+
+    private var sensitiveExportGuardEnabled: Binding<Bool> {
+        Binding(
+            get: { store.isSensitiveExportGuardEnabled },
+            set: { store.setSensitiveExportGuardEnabled($0) }
         )
     }
 

@@ -279,7 +279,7 @@ private struct CaptureRowView: View {
 
             Button("Copy") {
                 store.selectedCaptureID = capture.id
-                store.copySelectedCapture()
+                Task { await store.copySelectedCapture() }
             }
 
             Button("Pin to Screen") {

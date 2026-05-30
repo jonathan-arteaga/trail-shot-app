@@ -51,6 +51,21 @@ struct SensitiveTextDetectionService {
     }
 }
 
+enum SensitiveExportGuard {
+    static func uncoveredMatches(in matches: [SensitiveTextMatch], annotations: [CaptureAnnotation]) -> [SensitiveTextMatch] {
+        let redactionRects = annotations
+            .filter { $0.tool == .redact }
+            .map(\.normalizedRect)
+
+        return matches.filter { match in
+            let matchRect = match.redactionAnnotation.normalizedRect
+            return !redactionRects.contains { redactionRect in
+                redactionRect.covers(matchRect)
+            }
+        }
+    }
+}
+
 enum SensitivePatternMatcher {
     private static let patterns: [NSRegularExpression] = [
         try! NSRegularExpression(pattern: #"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}"#, options: [.caseInsensitive]),
@@ -70,6 +85,17 @@ enum SensitivePatternMatcher {
     }
 }
 
+private extension CaptureAnnotation {
+    var normalizedRect: CGRect {
+        CGRect(
+            x: min(start.x, end.x),
+            y: min(start.y, end.y),
+            width: abs(end.x - start.x),
+            height: abs(end.y - start.y)
+        )
+    }
+}
+
 private extension CGRect {
     func expandedBy(dx: CGFloat, dy: CGFloat) -> CGRect {
         let minX = max(self.minX - dx, 0)
@@ -77,5 +103,11 @@ private extension CGRect {
         let maxX = min(self.maxX + dx, 1)
         let maxY = min(self.maxY + dy, 1)
         return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+    }
+
+    func covers(_ other: CGRect) -> Bool {
+        let intersection = intersection(other)
+        guard !intersection.isNull, other.width > 0, other.height > 0 else { return false }
+        return (intersection.width * intersection.height) / (other.width * other.height) >= 0.92
     }
 }

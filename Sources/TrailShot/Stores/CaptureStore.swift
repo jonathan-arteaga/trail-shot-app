@@ -1,5 +1,6 @@
 import AppKit
 import Observation
+import UniformTypeIdentifiers
 
 @MainActor
 @Observable
@@ -24,6 +25,7 @@ final class CaptureStore {
     var isAutoCopyAfterCaptureEnabled: Bool
     var isQuickAccessAfterCaptureEnabled: Bool
     var isAutoRedactAfterCaptureEnabled: Bool
+    var isSensitiveExportGuardEnabled: Bool
     var captureRetentionPolicy: CaptureRetentionPolicy
     var recordingRetentionPolicy: CaptureRetentionPolicy
     var globalShortcuts: [GlobalShortcut]
@@ -45,6 +47,7 @@ final class CaptureStore {
     private let globalHotKeyService = GlobalHotKeyService()
     private let userDefaults: UserDefaults
     private let recordingsDirectory: URL
+    private var exportClearedCaptureIDs: Set<CaptureItem.ID> = []
 
     init(
         userDefaults: UserDefaults = .standard,
@@ -60,6 +63,7 @@ final class CaptureStore {
         isAutoCopyAfterCaptureEnabled = userDefaults.object(forKey: PreferencesKeys.autoCopyAfterCaptureEnabled) as? Bool ?? true
         isQuickAccessAfterCaptureEnabled = userDefaults.object(forKey: PreferencesKeys.quickAccessAfterCaptureEnabled) as? Bool ?? true
         isAutoRedactAfterCaptureEnabled = userDefaults.object(forKey: PreferencesKeys.autoRedactAfterCaptureEnabled) as? Bool ?? false
+        isSensitiveExportGuardEnabled = userDefaults.object(forKey: PreferencesKeys.sensitiveExportGuardEnabled) as? Bool ?? true
         captureRetentionPolicy = Self.loadCaptureRetentionPolicy(from: userDefaults)
         recordingRetentionPolicy = Self.loadRecordingRetentionPolicy(from: userDefaults)
         globalShortcuts = Self.loadGlobalShortcuts(from: userDefaults)
@@ -125,6 +129,14 @@ final class CaptureStore {
     func setAutoRedactAfterCaptureEnabled(_ enabled: Bool) {
         isAutoRedactAfterCaptureEnabled = enabled
         userDefaults.set(enabled, forKey: PreferencesKeys.autoRedactAfterCaptureEnabled)
+    }
+
+    func setSensitiveExportGuardEnabled(_ enabled: Bool) {
+        isSensitiveExportGuardEnabled = enabled
+        userDefaults.set(enabled, forKey: PreferencesKeys.sensitiveExportGuardEnabled)
+        if !enabled {
+            exportClearedCaptureIDs.removeAll()
+        }
     }
 
     func setAutoCopyAfterCaptureEnabled(_ enabled: Bool) {
@@ -511,9 +523,9 @@ final class CaptureStore {
         }
     }
 
-    func copySelectedCapture() {
-        guard let capture = selectedCapture else { return }
-        exportService.copyToClipboard(exportService.renderedImage(for: capture))
+    func copySelectedCapture() async {
+        guard let captureID = selectedCapture?.id else { return }
+        await copyCapture(id: captureID, framed: false)
     }
 
     func refreshScreenRecordingPermission() {
@@ -537,9 +549,9 @@ final class CaptureStore {
         status = .failed(screenRecordingPermissionMessage)
     }
 
-    func copySelectedCaptureFramed() {
-        guard let capture = selectedCapture else { return }
-        exportService.copyToClipboard(exportService.framedImage(for: capture))
+    func copySelectedCaptureFramed() async {
+        guard let captureID = selectedCapture?.id else { return }
+        await copyCapture(id: captureID, framed: true)
     }
 
     func copyDetectedTextFromSelectedCapture() async {
@@ -566,28 +578,55 @@ final class CaptureStore {
     }
 
     func saveSelectedCapture() async {
-        guard let capture = selectedCapture else { return }
+        guard
+            let captureID = selectedCapture?.id,
+            await ensureCaptureIsSafeToExport(id: captureID),
+            let capture = capture(id: captureID)
+        else {
+            return
+        }
         await exportService.saveWithPanel(capture)
     }
 
     func saveSelectedCaptureFramed() async {
-        guard let capture = selectedCapture else { return }
+        guard
+            let captureID = selectedCapture?.id,
+            await ensureCaptureIsSafeToExport(id: captureID),
+            let capture = capture(id: captureID)
+        else {
+            return
+        }
         await exportService.saveFramedWithPanel(capture)
     }
 
     func dragItemProvider(framed: Bool) -> NSItemProvider {
-        guard let capture = selectedCapture else {
+        guard let captureID = selectedCapture?.id else {
             return NSItemProvider()
         }
 
-        do {
-            let variant: ImageExportService.ExportVariant = framed ? .framed : .annotated
-            let url = try exportService.temporaryPNGURL(for: capture, variant: variant)
-            return NSItemProvider(contentsOf: url) ?? NSItemProvider(object: url as NSURL)
-        } catch {
-            NSSound.beep()
-            return NSItemProvider()
+        let provider = NSItemProvider()
+        provider.registerDataRepresentation(forTypeIdentifier: UTType.png.identifier, visibility: .all) { completion in
+            Task { @MainActor in
+                guard
+                    await self.ensureCaptureIsSafeToExport(id: captureID),
+                    let capture = self.capture(id: captureID)
+                else {
+                    completion(nil, CocoaError(.userCancelled))
+                    return
+                }
+
+                let image = framed ? self.exportService.framedImage(for: capture) : self.exportService.renderedImage(for: capture)
+                guard let data = image.pngData() else {
+                    completion(nil, CocoaError(.fileWriteUnknown))
+                    return
+                }
+
+                completion(data, nil)
+            }
+
+            return Progress(totalUnitCount: 1)
         }
+        return provider
     }
 
     func renameSelectedCapture(_ name: String) {
@@ -620,6 +659,7 @@ final class CaptureStore {
         guard let index = captures.firstIndex(where: { $0.id == id }) else { return }
         closePinnedCaptures(for: id)
         captures.remove(at: index)
+        exportClearedCaptureIDs.remove(id)
         selectedAnnotationID = nil
 
         if selectedCaptureID == id || selectedCaptureID == nil {
@@ -630,6 +670,7 @@ final class CaptureStore {
 
     func clearCaptureHistory() {
         captures.removeAll()
+        exportClearedCaptureIDs.removeAll()
         selectedCaptureID = nil
         selectedAnnotationID = nil
         closeAllPinnedCaptures()
@@ -646,6 +687,7 @@ final class CaptureStore {
 
         removedCaptureIDs.forEach(closePinnedCaptures)
         captures.removeAll { removedCaptureIDs.contains($0.id) }
+        removedCaptureIDs.forEach { exportClearedCaptureIDs.remove($0) }
         if let selectedCaptureID, removedCaptureIDs.contains(selectedCaptureID) {
             self.selectedCaptureID = captures.first?.id
             selectedAnnotationID = nil
@@ -673,6 +715,7 @@ final class CaptureStore {
 
     func clearAnnotations() {
         guard let index = selectedCaptureIndex else { return }
+        invalidateExportSafety(for: captures[index].id)
         captures[index].annotations.removeAll()
         selectedAnnotationID = nil
         persistCaptureLibrary()
@@ -705,6 +748,7 @@ final class CaptureStore {
             }
 
             let annotations = matches.map(\.redactionAnnotation)
+            invalidateExportSafety(for: id)
             captures[resolvedIndex].annotations.append(contentsOf: annotations)
 
             if !isAutomatic || selectedCaptureID == id {
@@ -733,6 +777,7 @@ final class CaptureStore {
         }
 
         captures[index].annotations.remove(at: annotationIndex)
+        invalidateExportSafety(for: captures[index].id)
         self.selectedAnnotationID = nil
         persistCaptureLibrary()
     }
@@ -740,6 +785,7 @@ final class CaptureStore {
     func undoLastAnnotation() {
         guard let index = selectedCaptureIndex, !captures[index].annotations.isEmpty else { return }
         let removed = captures[index].annotations.removeLast()
+        invalidateExportSafety(for: captures[index].id)
         if selectedAnnotationID == removed.id {
             selectedAnnotationID = nil
         }
@@ -795,6 +841,7 @@ final class CaptureStore {
             stepNumber: stepNumber
         )
         captures[index].annotations.append(annotation)
+        invalidateExportSafety(for: captures[index].id)
         selectedAnnotationID = annotation.id
         persistCaptureLibrary()
     }
@@ -818,6 +865,7 @@ final class CaptureStore {
         annotation.start = annotation.start.offsetBy(delta).clampedToUnitSquare
         annotation.end = annotation.end.offsetBy(delta).clampedToUnitSquare
         captures[captureIndex].annotations[annotationIndex] = annotation
+        invalidateExportSafety(for: captures[captureIndex].id)
         persistCaptureLibrary()
     }
 
@@ -867,6 +915,7 @@ final class CaptureStore {
         }
 
         captures[captureIndex].annotations[annotationIndex] = annotation
+        invalidateExportSafety(for: captures[captureIndex].id)
         persistCaptureLibrary()
     }
 
@@ -881,7 +930,60 @@ final class CaptureStore {
         }
 
         captures[captureIndex].annotations[annotationIndex].text = text
+        invalidateExportSafety(for: captures[captureIndex].id)
         persistCaptureLibrary()
+    }
+
+    private func copyCapture(id: CaptureItem.ID, framed: Bool) async {
+        guard
+            await ensureCaptureIsSafeToExport(id: id),
+            let capture = capture(id: id)
+        else {
+            return
+        }
+
+        let image = framed ? exportService.framedImage(for: capture) : exportService.renderedImage(for: capture)
+        exportService.copyToClipboard(image)
+        showTransientStatus(framed ? "Copied framed image" : "Copied image")
+    }
+
+    private func ensureCaptureIsSafeToExport(id: CaptureItem.ID) async -> Bool {
+        guard isSensitiveExportGuardEnabled else { return true }
+        guard !exportClearedCaptureIDs.contains(id) else { return true }
+        guard let index = captures.firstIndex(where: { $0.id == id }) else { return false }
+
+        status = .working("Checking screenshot locally")
+        let image = captures[index].image
+
+        do {
+            let matches = try await sensitiveTextDetectionService.detect(in: image)
+            guard let resolvedIndex = captures.firstIndex(where: { $0.id == id }) else {
+                status = .ready
+                return false
+            }
+
+            let uncoveredMatches = SensitiveExportGuard.uncoveredMatches(
+                in: matches,
+                annotations: captures[resolvedIndex].annotations
+            )
+
+            guard !uncoveredMatches.isEmpty else {
+                exportClearedCaptureIDs.insert(id)
+                status = .ready
+                return true
+            }
+
+            let annotations = uncoveredMatches.map(\.redactionAnnotation)
+            captures[resolvedIndex].annotations.append(contentsOf: annotations)
+            selectedAnnotationID = annotations.last?.id
+            activeTool = .move
+            persistCaptureLibrary()
+            showTransientStatus("Added \(annotations.count) redaction\(annotations.count == 1 ? "" : "s"). Review before sharing.")
+            return false
+        } catch {
+            status = .failed("Could not check sensitive text.")
+            return false
+        }
     }
 
     private func insertCapture(image: NSImage, kind: CaptureKind) {
@@ -898,18 +1000,22 @@ final class CaptureStore {
         selectedCaptureID = item.id
         selectedAnnotationID = nil
         persistCaptureLibrary()
-        if isAutoCopyAfterCaptureEnabled {
-            exportService.copyToClipboard(image)
-        }
         if isAutoRedactAfterCaptureEnabled {
             Task { [weak self] in
                 await self?.autoRedactCapture(id: item.id, isAutomatic: true)
+                if self?.isAutoCopyAfterCaptureEnabled == true {
+                    await self?.copyCapture(id: item.id, framed: false)
+                }
+            }
+        } else if isAutoCopyAfterCaptureEnabled {
+            Task { [weak self] in
+                await self?.copyCapture(id: item.id, framed: false)
             }
         }
         if isQuickAccessAfterCaptureEnabled {
             quickAccessService.show(
                 captureName: item.name,
-                copy: { [weak self] in self?.copySelectedCapture() },
+                copy: { [weak self] in Task { await self?.copySelectedCapture() } },
                 save: { [weak self] in Task { await self?.saveSelectedCapture() } },
                 pin: { [weak self] in self?.pinSelectedCapture() },
                 annotate: {
@@ -976,6 +1082,14 @@ final class CaptureStore {
         )
     }
 
+    private func capture(id: CaptureItem.ID) -> CaptureItem? {
+        captures.first { $0.id == id }
+    }
+
+    private func invalidateExportSafety(for id: CaptureItem.ID) {
+        exportClearedCaptureIDs.remove(id)
+    }
+
     private var selectedCaptureIndex: Int? {
         guard let selectedCaptureID else {
             return captures.isEmpty ? nil : 0
@@ -1023,6 +1137,7 @@ private enum PreferencesKeys {
     static let autoCopyAfterCaptureEnabled = "autoCopyAfterCaptureEnabled"
     static let quickAccessAfterCaptureEnabled = "quickAccessAfterCaptureEnabled"
     static let autoRedactAfterCaptureEnabled = "autoRedactAfterCaptureEnabled"
+    static let sensitiveExportGuardEnabled = "sensitiveExportGuardEnabled"
     static let captureRetentionPolicy = "captureRetentionPolicy"
     static let recordingRetentionPolicy = "recordingRetentionPolicy"
     static let globalShortcuts = "globalShortcuts"
