@@ -797,16 +797,21 @@ final class CaptureStore {
                 return
             }
 
-            guard !matches.isEmpty else {
+            let uncoveredMatches = SensitiveExportGuard.uncoveredMatches(
+                in: matches,
+                annotations: captures[resolvedIndex].annotations
+            )
+
+            guard !uncoveredMatches.isEmpty else {
                 if isAutomatic {
                     status = .ready
                 } else {
-                    showTransientStatus("No sensitive text found")
+                    showTransientStatus(matches.isEmpty ? "No sensitive text found" : "Sensitive text already covered")
                 }
                 return
             }
 
-            let annotations = matches.map(\.redactionAnnotation)
+            let annotations = uncoveredMatches.map(\.redactionAnnotation)
             invalidateExportSafety(for: id)
             captures[resolvedIndex].annotations.append(contentsOf: annotations)
 

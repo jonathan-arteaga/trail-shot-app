@@ -50,6 +50,27 @@ final class SensitiveTextDetectionTests: XCTestCase {
         XCTAssertEqual(SensitiveExportGuard.uncoveredMatches(in: [match], annotations: []), [match])
     }
 
+    func testExportGuardOnlyReturnsUncoveredSensitiveMatches() {
+        let coveredMatch = SensitiveTextMatch(
+            text: "admin@example.com",
+            confidence: 0.98,
+            boundingBox: CGRect(x: 0.24, y: 0.38, width: 0.28, height: 0.08)
+        )
+        let uncoveredMatch = SensitiveTextMatch(
+            text: "5005f0000012345AAA",
+            confidence: 0.96,
+            boundingBox: CGRect(x: 0.62, y: 0.38, width: 0.24, height: 0.08)
+        )
+
+        XCTAssertEqual(
+            SensitiveExportGuard.uncoveredMatches(
+                in: [coveredMatch, uncoveredMatch],
+                annotations: [coveredMatch.redactionAnnotation]
+            ),
+            [uncoveredMatch]
+        )
+    }
+
     func testSensitiveTextReviewCacheStoresAndRemovesCaptureMatches() {
         let firstCaptureID = UUID()
         let secondCaptureID = UUID()
