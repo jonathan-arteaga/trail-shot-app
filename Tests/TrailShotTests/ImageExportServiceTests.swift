@@ -59,6 +59,45 @@ final class ImageExportServiceTests: XCTestCase {
     }
 
     @MainActor
+    func testSuggestedExportFilenamesAreSafeAndPredictable() {
+        let sourceImage = makeSourceImage()
+        let capture = CaptureItem(
+            kind: .area,
+            createdAt: Date(),
+            image: sourceImage,
+            pixelSize: sourceImage.size,
+            name: " Opportunity / Case: 500? "
+        )
+        let exportService = ImageExportService()
+
+        XCTAssertEqual(
+            exportService.suggestedFilename(for: capture, variant: .annotated),
+            "Opportunity-Case-500.png"
+        )
+        XCTAssertEqual(
+            exportService.suggestedFilename(for: capture, variant: .framed),
+            "Opportunity-Case-500-framed.png"
+        )
+    }
+
+    @MainActor
+    func testSuggestedExportFilenameFallsBackToAppName() {
+        let sourceImage = makeSourceImage()
+        let capture = CaptureItem(
+            kind: .area,
+            createdAt: Date(),
+            image: sourceImage,
+            pixelSize: sourceImage.size,
+            name: " / : ? "
+        )
+
+        XCTAssertEqual(
+            ImageExportService().suggestedFilename(for: capture, variant: .annotated),
+            "TrailShot.png"
+        )
+    }
+
+    @MainActor
     private func makeSourceImage() -> NSImage {
         let size = NSSize(width: 360, height: 220)
         let image = NSImage(size: size)

@@ -17,7 +17,7 @@ struct ImageExportService {
     func saveWithPanel(_ capture: CaptureItem) async {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.png]
-        panel.nameFieldStringValue = "\(capture.name.replacingOccurrences(of: " ", with: "-")).png"
+        panel.nameFieldStringValue = suggestedFilename(for: capture, variant: .annotated)
         panel.canCreateDirectories = true
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
@@ -32,7 +32,7 @@ struct ImageExportService {
     func saveFramedWithPanel(_ capture: CaptureItem) async {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.png]
-        panel.nameFieldStringValue = "\(capture.name.replacingOccurrences(of: " ", with: "-"))-framed.png"
+        panel.nameFieldStringValue = suggestedFilename(for: capture, variant: .framed)
         panel.canCreateDirectories = true
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
@@ -77,10 +77,22 @@ struct ImageExportService {
             throw CocoaError(.fileWriteUnknown)
         }
 
-        let filename = "\(safeFilename(capture.name))-\(suffix)-\(UUID().uuidString.prefix(8)).png"
+        let filename = "\(baseFilename(for: capture))-\(suffix)-\(UUID().uuidString.prefix(8)).png"
         let url = directory.appendingPathComponent(filename)
         try data.write(to: url, options: .atomic)
         return url
+    }
+
+    func suggestedFilename(for capture: CaptureItem, variant: ExportVariant) -> String {
+        let suffix: String
+        switch variant {
+        case .annotated:
+            suffix = ""
+        case .framed:
+            suffix = "-framed"
+        }
+
+        return "\(baseFilename(for: capture))\(suffix).png"
     }
 
     func framedImage(for capture: CaptureItem) -> NSImage {
@@ -314,6 +326,10 @@ struct ImageExportService {
                 try? FileManager.default.removeItem(at: file)
             }
         }
+    }
+
+    private func baseFilename(for capture: CaptureItem) -> String {
+        safeFilename(capture.name)
     }
 
     private func safeFilename(_ name: String) -> String {
