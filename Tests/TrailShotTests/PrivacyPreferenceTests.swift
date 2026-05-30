@@ -43,11 +43,14 @@ final class PrivacyPreferenceTests: XCTestCase {
 
         let store = CaptureStore(userDefaults: defaults, captureLibraryDirectory: Self.temporaryCaptureDirectory())
         XCTAssertEqual(store.captureRetentionPolicy, .forever)
+        XCTAssertEqual(store.recordingRetentionPolicy, .forever)
 
         store.setCaptureRetentionPolicy(.thirtyDays)
+        store.setRecordingRetentionPolicy(.sevenDays)
 
         let restoredStore = CaptureStore(userDefaults: defaults, captureLibraryDirectory: Self.temporaryCaptureDirectory())
         XCTAssertEqual(restoredStore.captureRetentionPolicy, .thirtyDays)
+        XCTAssertEqual(restoredStore.recordingRetentionPolicy, .sevenDays)
     }
 
     private static func temporaryCaptureDirectory() -> URL {

@@ -53,8 +53,16 @@ enum CaptureRetentionPolicy: String, CaseIterable, Identifiable, Codable {
     }
 
     func keeps(capture: CaptureItem, now: Date) -> Bool {
+        keeps(createdAt: capture.createdAt, now: now)
+    }
+
+    func keeps(recording: RecordingItem, now: Date) -> Bool {
+        keeps(createdAt: recording.createdAt, now: now)
+    }
+
+    private func keeps(createdAt: Date, now: Date) -> Bool {
         guard let maximumAge else { return true }
-        return now.timeIntervalSince(capture.createdAt) <= maximumAge
+        return now.timeIntervalSince(createdAt) <= maximumAge
     }
 }
 

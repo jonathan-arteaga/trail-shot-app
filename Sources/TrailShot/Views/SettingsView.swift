@@ -150,7 +150,12 @@ struct SettingsView: View {
                         Text(policy.title).tag(policy)
                     }
                 }
-                Text("Expired screenshots and their saved image files are removed from TrailShot’s local history.")
+                Picker("Keep recordings", selection: recordingRetentionPolicy) {
+                    ForEach(CaptureRetentionPolicy.allCases) { policy in
+                        Text(policy.title).tag(policy)
+                    }
+                }
+                Text("Expired screenshots and recording files are deleted from local storage.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -192,6 +197,13 @@ struct SettingsView: View {
         Binding(
             get: { store.captureRetentionPolicy },
             set: { store.setCaptureRetentionPolicy($0) }
+        )
+    }
+
+    private var recordingRetentionPolicy: Binding<CaptureRetentionPolicy> {
+        Binding(
+            get: { store.recordingRetentionPolicy },
+            set: { store.setRecordingRetentionPolicy($0) }
         )
     }
 }

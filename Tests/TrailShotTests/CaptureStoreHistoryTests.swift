@@ -101,6 +101,42 @@ final class CaptureStoreHistoryTests: XCTestCase {
     }
 
     @MainActor
+    func testRecordingRetentionPolicyRemovesExpiredFiles() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("TrailShotRecordingRetentionTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let now = Date(timeIntervalSince1970: 2_000_000)
+        let oldURL = directory.appendingPathComponent("old.mov")
+        let freshURL = directory.appendingPathComponent("fresh.mov")
+        try Data(repeating: 1, count: 12).write(to: oldURL)
+        try Data(repeating: 2, count: 24).write(to: freshURL)
+        try FileManager.default.setAttributes(
+            [.creationDate: now.addingTimeInterval(-8 * 24 * 60 * 60), .modificationDate: now.addingTimeInterval(-8 * 24 * 60 * 60)],
+            ofItemAtPath: oldURL.path
+        )
+        try FileManager.default.setAttributes(
+            [.creationDate: now.addingTimeInterval(-2 * 24 * 60 * 60), .modificationDate: now.addingTimeInterval(-2 * 24 * 60 * 60)],
+            ofItemAtPath: freshURL.path
+        )
+
+        let captureDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("TrailShotRecordingRetentionCaptureTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: captureDirectory) }
+
+        let store = CaptureStore(recordingsDirectory: directory, captureLibraryDirectory: captureDirectory)
+        store.recordingRetentionPolicy = .sevenDays
+
+        store.applyRecordingRetentionPolicy(now: now)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: oldURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: freshURL.path))
+        XCTAssertEqual(store.recordings.map { $0.url.resolvingSymlinksInPath() }, [freshURL.resolvingSymlinksInPath()])
+        XCTAssertEqual(store.lastRecordingURL?.resolvingSymlinksInPath(), freshURL.resolvingSymlinksInPath())
+    }
+
+    @MainActor
     private func makeCapture(name: String, createdAt: Date = Date()) -> CaptureItem {
         let image = NSImage(size: NSSize(width: 120, height: 80))
         image.lockFocus()

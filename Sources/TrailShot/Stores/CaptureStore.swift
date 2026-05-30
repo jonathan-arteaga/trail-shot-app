@@ -25,6 +25,7 @@ final class CaptureStore {
     var isQuickAccessAfterCaptureEnabled: Bool
     var isAutoRedactAfterCaptureEnabled: Bool
     var captureRetentionPolicy: CaptureRetentionPolicy
+    var recordingRetentionPolicy: CaptureRetentionPolicy
     var globalShortcuts: [GlobalShortcut]
     var globalShortcutRegistrations: [GlobalShortcutRegistration] = []
     var shortcutEditingMessage: String?
@@ -60,8 +61,10 @@ final class CaptureStore {
         isQuickAccessAfterCaptureEnabled = userDefaults.object(forKey: PreferencesKeys.quickAccessAfterCaptureEnabled) as? Bool ?? true
         isAutoRedactAfterCaptureEnabled = userDefaults.object(forKey: PreferencesKeys.autoRedactAfterCaptureEnabled) as? Bool ?? false
         captureRetentionPolicy = Self.loadCaptureRetentionPolicy(from: userDefaults)
+        recordingRetentionPolicy = Self.loadRecordingRetentionPolicy(from: userDefaults)
         globalShortcuts = Self.loadGlobalShortcuts(from: userDefaults)
         recordings = Self.loadRecordings(from: recordingsDirectory)
+        applyRecordingRetentionPolicy(now: Date())
         lastRecordingURL = recordings.first?.url
         captures = captureLibraryService.loadCaptures()
         applyCaptureRetentionPolicy(now: Date(), shouldPersistWhenChanged: true)
@@ -138,6 +141,12 @@ final class CaptureStore {
         captureRetentionPolicy = policy
         userDefaults.set(policy.rawValue, forKey: PreferencesKeys.captureRetentionPolicy)
         applyCaptureRetentionPolicy(now: Date(), shouldPersistWhenChanged: true)
+    }
+
+    func setRecordingRetentionPolicy(_ policy: CaptureRetentionPolicy) {
+        recordingRetentionPolicy = policy
+        userDefaults.set(policy.rawValue, forKey: PreferencesKeys.recordingRetentionPolicy)
+        applyRecordingRetentionPolicy(now: Date())
     }
 
     private func configureGlobalShortcuts() {
@@ -222,6 +231,17 @@ final class CaptureStore {
     private static func loadCaptureRetentionPolicy(from userDefaults: UserDefaults) -> CaptureRetentionPolicy {
         guard
             let rawValue = userDefaults.string(forKey: PreferencesKeys.captureRetentionPolicy),
+            let policy = CaptureRetentionPolicy(rawValue: rawValue)
+        else {
+            return .forever
+        }
+
+        return policy
+    }
+
+    private static func loadRecordingRetentionPolicy(from userDefaults: UserDefaults) -> CaptureRetentionPolicy {
+        guard
+            let rawValue = userDefaults.string(forKey: PreferencesKeys.recordingRetentionPolicy),
             let policy = CaptureRetentionPolicy(rawValue: rawValue)
         else {
             return .forever
@@ -429,7 +449,8 @@ final class CaptureStore {
 
     func refreshRecordings() {
         recordings = Self.loadRecordings(from: recordingsDirectory)
-        lastRecordingURL = recordings.first?.url ?? lastRecordingURL
+        applyRecordingRetentionPolicy(now: Date())
+        lastRecordingURL = recordings.first?.url
     }
 
     func openRecording(_ recording: RecordingItem) {
@@ -632,6 +653,21 @@ final class CaptureStore {
 
         if shouldPersistWhenChanged {
             persistCaptureLibrary()
+        }
+    }
+
+    func applyRecordingRetentionPolicy(now: Date) {
+        let expiredRecordings = recordings.filter { !recordingRetentionPolicy.keeps(recording: $0, now: now) }
+        guard !expiredRecordings.isEmpty else { return }
+
+        for recording in expiredRecordings where FileManager.default.fileExists(atPath: recording.url.path) {
+            try? FileManager.default.removeItem(at: recording.url)
+        }
+
+        let expiredIDs = Set(expiredRecordings.map(\.id))
+        recordings.removeAll { expiredIDs.contains($0.id) }
+        if let lastRecordingURL, expiredRecordings.contains(where: { $0.url == lastRecordingURL }) {
+            self.lastRecordingURL = recordings.first?.url
         }
     }
 
@@ -988,6 +1024,7 @@ private enum PreferencesKeys {
     static let quickAccessAfterCaptureEnabled = "quickAccessAfterCaptureEnabled"
     static let autoRedactAfterCaptureEnabled = "autoRedactAfterCaptureEnabled"
     static let captureRetentionPolicy = "captureRetentionPolicy"
+    static let recordingRetentionPolicy = "recordingRetentionPolicy"
     static let globalShortcuts = "globalShortcuts"
 }
 
